@@ -34,6 +34,18 @@ export function searchStops(query, onResults) {
   }, DEBOUNCE_MS);
 }
 
+// Cancels any pending/in-flight autocomplete lookup. Used when a stop gets
+// selected some other way (map click, map circle, clear button) so a
+// debounced search started before that selection can't repopulate the
+// suggestion list afterwards.
+export function cancelStopSearch() {
+  clearTimeout(debounceTimer);
+  debounceTimer = null;
+  requestSeq += 1;
+  autocompleteAbort?.abort();
+  autocompleteAbort = null;
+}
+
 export async function selectStopByText(stopText) {
   let stop;
   try {
@@ -55,11 +67,15 @@ export async function selectStopsNearLocation(coordinate) {
 }
 
 export function selectStopArea(stop) {
-  store.set({ selectedStop: stop, errors: { ...store.get().errors, stopNotFound: null } });
+  store.set((state) => ({
+    selectedStop: stop,
+    stopSelectionSeq: state.stopSelectionSeq + 1,
+    errors: { ...state.errors, stopNotFound: null },
+  }));
   onStopSelected();
 }
 
 export function clearSelectedStop() {
-  store.set({ selectedStop: null });
+  store.set((state) => ({ selectedStop: null, stopSelectionSeq: state.stopSelectionSeq + 1 }));
   onStopDeselected();
 }

@@ -1,6 +1,6 @@
 import { store } from './appState.js';
 import { toggleLine } from './filters.js';
-import { searchStops, selectStopByText, clearSelectedStop } from './stops.js';
+import { searchStops, selectStopByText, clearSelectedStop, cancelStopSearch } from './stops.js';
 import { formatTime, minutesUntil } from './clock.js';
 import { colorForLineId } from './lineColors.js';
 import { selectVehicle } from './vehicleSelection.js';
@@ -12,14 +12,48 @@ export function initUi() {
   wireVehicleTableClicks();
   store.subscribe((state) => {
     renderLineFilters(state);
+    renderStopSearchInput(state);
     renderVehiclesTable(state);
     renderArrivals(state);
     renderStatus(state);
   });
   renderLineFilters(store.get());
+  renderStopSearchInput(store.get());
   renderVehiclesTable(store.get());
   renderArrivals(store.get());
   renderStatus(store.get());
+}
+
+// Keeps the search box showing whichever stop is currently selected, so a
+// stop picked on the map (circle click or nearest-stop map click) names
+// itself in the same place a typed search would.
+//
+// Keyed on state.stopSelectionSeq (bumped by every selectStopArea /
+// clearSelectedStop call) rather than on selectedStop.id: re-selecting the
+// stop that is already selected must still restate it in the box, since
+// the user may have typed over the value in the meantime. Unrelated
+// re-renders (15s poll ticks, filter toggles) leave the seq untouched, so
+// in-progress typing is never clobbered.
+let lastSyncedSelectionSeq = 0;
+
+function renderStopSearchInput(state) {
+  const seq = state.stopSelectionSeq ?? 0;
+  if (seq === lastSyncedSelectionSeq) return;
+  lastSyncedSelectionSeq = seq;
+
+  const input = document.getElementById('stop-search');
+  const results = document.getElementById('stop-search-results');
+  if (!input) return;
+
+  input.value = state.selectedStop?.text ?? '';
+  // A debounced search started just before the map click would otherwise
+  // land afterwards and repopulate the suggestion list under the new value.
+  cancelStopSearch();
+  if (results) {
+    results.innerHTML = '';
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
 }
 
 // Delegated once at startup (rather than rebound on every render, since
@@ -27,10 +61,19 @@ export function initUi() {
 function wireVehicleTableClicks() {
   const container = document.getElementById('live-buses');
   if (!container) return;
-  container.addEventListener('click', (e) => {
+
+  const activateRow = (row) => {
+    if (!row?.dataset.journeyId) return;
+    selectVehicle(Number(row.dataset.journeyId));
+  };
+
+  container.addEventListener('click', (e) => activateRow(e.target.closest('tr[data-journey-id]')));
+  container.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
     const row = e.target.closest('tr[data-journey-id]');
     if (!row) return;
-    selectVehicle(Number(row.dataset.journeyId));
+    e.preventDefault();
+    activateRow(row);
   });
 }
 
@@ -59,7 +102,7 @@ function renderVehiclesTable(state) {
   const parts = [
     `<h2>Live buses (${visibleVehicles.length})</h2>`,
     subtitle,
-    '<table class="arrivals-table"><thead><tr><th>Line</th><th>Destination</th><th>Next stop</th><th>Planned</th><th>Expected</th><th>Occupancy</th><th>Updated</th><th>Status</th></tr></thead><tbody>',
+    '<div class="table-scroll" tabindex="0" aria-label="Live buses table"><table class="arrivals-table live-buses-table"><thead><tr><th>Line</th><th>Destination</th><th>Next stop</th><th>Planned</th><th>Expected</th><th>Updated</th><th>Status</th></tr></thead><tbody>',
   ];
   for (const bus of visibleVehicles) {
     // Short display name (e.g. "Röd", trimming TransitCall.line's trailing
@@ -73,22 +116,24 @@ function renderVehiclesTable(state) {
     const nextStopText = bus.nextStop?.stopText ?? '—';
     const planned = formatTime(bus.nextStop?.plannedTime);
     const expected = formatTime(bus.nextStop?.forecastTime);
-    const occupancy = bus.nextStop?.occupancyPercent != null ? `${Math.round(bus.nextStop.occupancyPercent)}%` : '—';
     const rowClasses = [bus.stale ? 'row-stale' : '', bus.journeyId === state.selectedVehicleJourneyId ? 'row-selected' : '']
       .filter(Boolean)
       .join(' ');
-    parts.push(`<tr class="${rowClasses}" data-journey-id="${bus.journeyId ?? ''}">
+    const selected = bus.journeyId === state.selectedVehicleJourneyId;
+    const rowAttributes = bus.journeyId == null
+      ? ''
+      : ` data-journey-id="${bus.journeyId}" tabindex="0"${selected ? ' aria-current="true"' : ''}`;
+    parts.push(`<tr class="${rowClasses}"${rowAttributes}>
       <td><span class="line-badge" style="background:${color};color:#ffffff">${escapeHtml(lineText)}</span></td>
       <td>${escapeHtml(destination)}</td>
       <td>${escapeHtml(nextStopText)}</td>
       <td>${planned}</td>
       <td>${expected}</td>
-      <td>${occupancy}</td>
       <td>${formatTime(bus.position.timestamp)}</td>
       <td>${status}</td>
     </tr>`);
   }
-  parts.push('</tbody></table>');
+  parts.push('</tbody></table></div>');
   container.innerHTML = parts.join('');
 }
 
@@ -129,26 +174,78 @@ function wireSearch() {
   const clearBtn = document.getElementById('stop-clear');
   if (!input || !results) return;
 
+  let activeIndex = -1;
+  let searchRequestSeq = 0;
+
+  const updateActiveOption = () => {
+    const options = [...results.querySelectorAll('[role="option"]')];
+    options.forEach((option, index) => option.setAttribute('aria-selected', String(index === activeIndex)));
+    const active = options[activeIndex];
+    if (active) {
+      input.setAttribute('aria-activedescendant', active.id);
+      active.scrollIntoView({ block: 'nearest' });
+    } else {
+      input.removeAttribute('aria-activedescendant');
+    }
+  };
+
+  const closeResults = () => {
+    searchRequestSeq += 1;
+    activeIndex = -1;
+    results.innerHTML = '';
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  };
+
+  const chooseResult = async (text) => {
+    input.value = text;
+    closeResults();
+    await selectStopByText(text);
+  };
+
   input.addEventListener('input', () => {
+    activeIndex = -1;
+    const mySearchSeq = ++searchRequestSeq;
     searchStops(input.value, (matches) => {
+      if (mySearchSeq !== searchRequestSeq) return;
       results.innerHTML = matches
-        .map((text) => `<li data-text="${escapeHtml(text)}">${escapeHtml(text)}</li>`)
+        .map((text, index) => `<li id="stop-option-${index}" role="option" aria-selected="false" data-text="${escapeHtml(text)}">${escapeHtml(text)}</li>`)
         .join('');
+      input.setAttribute('aria-expanded', String(matches.length > 0));
+      updateActiveOption();
     });
   });
 
-  results.addEventListener('click', async (e) => {
-    const li = e.target.closest('li[data-text]');
-    if (!li) return;
-    input.value = li.dataset.text;
-    results.innerHTML = '';
-    await selectStopByText(li.dataset.text);
+  input.addEventListener('keydown', (e) => {
+    const options = [...results.querySelectorAll('[role="option"]')];
+    if (e.key === 'Escape') {
+      closeResults();
+      return;
+    }
+    if (!options.length || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter')) return;
+    if (e.key === 'Enter') {
+      if (activeIndex >= 0) {
+        e.preventDefault();
+        chooseResult(options[activeIndex].dataset.text);
+      }
+      return;
+    }
+    e.preventDefault();
+    const step = e.key === 'ArrowDown' ? 1 : -1;
+    activeIndex = activeIndex < 0 ? (step > 0 ? 0 : options.length - 1) : (activeIndex + step + options.length) % options.length;
+    updateActiveOption();
+  });
+
+  results.addEventListener('click', (e) => {
+    const option = e.target.closest('[role="option"][data-text]');
+    if (option) chooseResult(option.dataset.text);
   });
 
   clearBtn?.addEventListener('click', () => {
     input.value = '';
-    results.innerHTML = '';
+    closeResults();
     clearSelectedStop();
+    input.focus();
   });
 }
 
@@ -192,7 +289,7 @@ function renderArrivals(state) {
     parts.push('<p class="hint">No departures right now.</p>');
   } else {
     parts.push(
-      '<table class="arrivals-table"><thead><tr><th>Line</th><th>Destination</th><th>Planned</th><th>Forecast</th><th>Quality</th></tr></thead><tbody>'
+      '<div class="table-scroll" tabindex="0" aria-label="Stop arrivals table"><table class="arrivals-table"><thead><tr><th>Line</th><th>Destination</th><th>Planned</th><th>Forecast</th><th>Quality</th></tr></thead><tbody>'
     );
     for (const call of visibleCalls) {
       const forecast = call.departure ?? call.arrival;
@@ -216,7 +313,7 @@ function renderArrivals(state) {
         );
       }
     }
-    parts.push('</tbody></table>');
+    parts.push('</tbody></table></div>');
   }
 
   container.innerHTML = parts.join('');

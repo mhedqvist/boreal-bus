@@ -2,12 +2,15 @@ import { getConfig } from './config.js';
 import { store } from './appState.js';
 import { selectStopsNearLocation, selectStopArea } from './stops.js';
 import { colorForLineId } from './lineColors.js';
+import { headingAlongRoute } from './routeHeading.js';
 
 let map = null;
 let vehicleLayer = null;
 let routeLayer = null;
 let stopLayer = null;
 let stopMarker = null;
+let mapResizeObserver = null;
+let resizeFrame = null;
 // Tracks the previously-applied vehicle selection so panning/opening the
 // tooltip only happens once, right when the selection changes - not on
 // every 15s re-render (which would otherwise yank the map view repeatedly
@@ -36,6 +39,8 @@ export function initMap(containerId) {
   stopLayer = L.layerGroup().addTo(map);
   vehicleLayer = L.layerGroup().addTo(map);
 
+  observeMapSize(document.getElementById(containerId));
+
   map.on('click', async (e) => {
     try {
       const stops = await selectStopsNearLocation({ lat: e.latlng.lat, lon: e.latlng.lng });
@@ -51,6 +56,26 @@ export function initMap(containerId) {
   store.subscribe(render);
   render(store.get());
   return map;
+}
+
+function observeMapSize(container) {
+  if (!container) return;
+
+  const invalidateSize = () => {
+    if (resizeFrame != null) cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null;
+      map?.invalidateSize({ pan: false });
+    });
+  };
+
+  if ('ResizeObserver' in window) {
+    mapResizeObserver = new ResizeObserver(invalidateSize);
+    mapResizeObserver.observe(container);
+  } else {
+    window.addEventListener('resize', invalidateSize);
+  }
+  window.addEventListener('orientationchange', invalidateSize);
 }
 
 function placeStopMarker(stop) {
@@ -124,15 +149,22 @@ function renderVehicles(state) {
     const { lat, lon } = bus.position.location;
     const color = bus.lineId !== undefined ? colorForLineId(bus.lineId) : '#888888';
     const isSelected = bus.journeyId != null && bus.journeyId === selectedId;
-    const heading = bus.position.heading ?? 0;
+    const reportedHeading = bus.position.heading;
+    const nextStopLocation = locationForStopText(state, bus.nextStop?.stopText);
+    const heading = reportedHeading != null && Number.isFinite(Number(reportedHeading))
+      ? Number(reportedHeading)
+      : headingAlongRoute(bus.position.location, state.routeGeometry.get(bus.routeId), nextStopLocation);
 
-    const arrowClasses = ['vehicle-arrow'];
-    if (bus.stale) arrowClasses.push('vehicle-arrow--stale');
+    const markerClasses = [heading == null ? 'vehicle-dot' : 'vehicle-arrow'];
+    if (bus.stale) markerClasses.push(heading == null ? 'vehicle-dot--stale' : 'vehicle-arrow--stale');
     const wrapperClasses = ['vehicle-icon-wrapper'];
     if (isSelected) wrapperClasses.push('vehicle-icon-wrapper--selected');
+    const markerStyle = heading == null
+      ? `background-color: ${color};`
+      : `transform: rotate(${heading}deg); border-bottom-color: ${color};`;
     const icon = L.divIcon({
       className: wrapperClasses.join(' '),
-      html: `<div class="${arrowClasses.join(' ')}" style="transform: rotate(${heading}deg); border-bottom-color: ${color};"></div>`,
+      html: `<div class="${markerClasses.join(' ')}" style="${markerStyle}"></div>`,
       iconSize: [24, 24],
       iconAnchor: [12, 12],
     });
@@ -183,6 +215,14 @@ function formatAge(ageMs) {
 
 function lineTextFor(state, lineId) {
   return state.lines.find((l) => l.id === lineId)?.text ?? `Line ${lineId}`;
+}
+
+function locationForStopText(state, stopText) {
+  if (!stopText) return null;
+  for (const stop of state.stopLocations.values()) {
+    if (stop.text === stopText) return stop.location;
+  }
+  return null;
 }
 
 function textTooltip(text) {

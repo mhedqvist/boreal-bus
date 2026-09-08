@@ -7,9 +7,11 @@ there is no backend, package manager, build step, or local database.
 ## Features
 
 - All discovered bus routes, colored by their Swedish line names.
-- Directional vehicle arrows using each position's reported heading.
+- Directional vehicle arrows using each reported heading, falling back to
+  the nearest route segment oriented toward the next stop when heading is
+  unavailable.
 - Live buses table with short line name, destination, next stop, planned and
-  expected arrival, occupancy, update time, and freshness status.
+  expected arrival, update time, and freshness status.
 - Click a table row to pan to and highlight that bus; its tooltip closes after
   three seconds while the highlight remains. Click the row again to clear it.
 - All bus stops shown as clickable circles; selecting one displays its live
@@ -19,6 +21,11 @@ there is no backend, package manager, build step, or local database.
   and resumes immediately when the tab becomes visible.
 - Positions older than three minutes are marked stale. Positions older than
   15 minutes remain visible on the map but are omitted from the table.
+- Responsive phone, tablet, and desktop layouts: phones and tablet portrait
+  use a map-first scrolling page, while tablet landscape and desktop use a
+  two-column map/sidebar view. Wide data tables scroll within their panels.
+- Touch-sized controls plus keyboard navigation for stop suggestions and live
+  bus selection.
 
 ## Run locally
 

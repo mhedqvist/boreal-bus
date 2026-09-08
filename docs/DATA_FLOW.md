@@ -85,8 +85,8 @@ before position fetching rather than running them independently:
        keeping the journey whose next forecast is soonest in the future
        (one bus's later trips of the day report the same GPS fix)
      → tag each with ageMs/stale using clock.js's server-corrected now()
-     → attach line, journeyId, and nextStop {stopText, plannedTime,
-       forecastTime, occupancyPercent} from the representative call
+     → attach line, journeyId, routeId, and nextStop {stopText, plannedTime,
+       forecastTime} from the representative call
      → store.set({ liveVehicles })
    ```
    Self-guards against overlapping ticks (`liveVehiclesRunning`) since the
@@ -156,9 +156,12 @@ Subscribed to the store; re-renders on every `store.set(...)` anywhere:
   line's `text`, see `lineColors.js` — not `lineAppearance`, which was
   observed unreliable).
 - **Vehicles**: iterates `state.liveVehicles`, skips any whose `lineId`
-  isn't in `activeLineIds`, draws an `L.marker` with an `L.divIcon` CSS
-  triangle at `position.location`, rotated by `position.heading` to show
-  direction of travel, colored by `colorForLineId(bus.lineId)` (gray if
+  isn't in `activeLineIds`, and draws an `L.marker` with an `L.divIcon` at
+  `position.location`. The arrow uses `position.heading` when reported;
+  otherwise its direction is derived from the nearest segment of
+  `routeGeometry[bus.routeId]`, oriented toward `bus.nextStop` (or a dot is
+  used until both route and stop geometry are available). Markers are
+  colored by `colorForLineId(bus.lineId)` (gray if
   uncorrelated), faded if `bus.stale`, with a tooltip showing line →
   destination → next stop (and staleness age if stale). When
   `bus.journeyId === state.selectedVehicleJourneyId` the marker gets a
@@ -193,8 +196,7 @@ independent pieces:
   markers, filtered by `activeLineIds` and to buses whose last position
   fix is under 15 minutes old, one row per physical bus (line badge with
   the short line name, destination, next stop with its planned and
-  expected times, occupancy percentage, last-updated time, Live/Stale
-  status). Each row carries a `data-journey-id`; a single delegated click
+  expected times, last-updated time, and Live/Stale status). Each row carries a `data-journey-id`; a single delegated click
   listener (bound once, since the table's `innerHTML` is rebuilt every
   tick) calls `selectVehicle(journeyId)` [`vehicleSelection.js`], which
   toggles `state.selectedVehicleJourneyId` — pure client-side state, no

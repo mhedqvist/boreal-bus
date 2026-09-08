@@ -10,33 +10,34 @@
 <body>
   <header class="app-header">
     <h1>Kiruna Live Bus Tracker</h1>
-    <p id="app-error" class="banner banner-error" hidden></p>
-    <p id="status-banner" class="banner banner-status" hidden></p>
+    <p id="app-error" class="banner banner-error" role="alert" hidden></p>
+    <p id="status-banner" class="banner banner-status" role="status" aria-live="polite" hidden></p>
   </header>
 
   <main class="app-layout">
-    <section class="map-panel">
+    <section class="map-panel" aria-label="Live bus map">
       <div id="map"></div>
     </section>
 
     <aside class="side-panel">
-      <section class="filters-panel">
-        <h2>Lines</h2>
+      <section class="filters-panel" aria-labelledby="lines-heading">
+        <h2 id="lines-heading">Lines</h2>
         <div id="line-filters" class="line-filters"></div>
       </section>
 
-      <section id="live-buses" class="live-buses-panel"></section>
+      <section id="live-buses" class="live-buses-panel" aria-label="Live buses"></section>
 
-      <section class="stop-panel">
-        <h2>Stop</h2>
+      <section class="stop-panel" aria-labelledby="stop-heading">
+        <h2 id="stop-heading">Stop</h2>
+        <label class="visually-hidden" for="stop-search">Search for a bus stop</label>
         <div class="stop-search">
-          <input id="stop-search" type="text" placeholder="Search stop, e.g. Stadshustorget" autocomplete="off" />
+          <input id="stop-search" type="text" placeholder="Search stop, e.g. Stadshustorget" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="stop-search-results" aria-expanded="false" />
           <button id="stop-clear" type="button">Clear</button>
         </div>
-        <ul id="stop-search-results" class="stop-search-results"></ul>
+        <ul id="stop-search-results" class="stop-search-results" role="listbox"></ul>
       </section>
 
-      <section id="arrivals" class="arrivals-panel"></section>
+      <section id="arrivals" class="arrivals-panel" aria-label="Stop arrivals"></section>
     </aside>
   </main>
 

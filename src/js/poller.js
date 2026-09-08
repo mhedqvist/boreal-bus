@@ -38,7 +38,7 @@ async function pollVehicles() {
 }
 
 // Scans GetCalls for every known stop to rebuild journeyVehicles (fresh
-// nextStop/planned/expected/occupancy data + representative call ids -
+// nextStop/planned/expected data + representative call ids -
 // see call-discovery.js), then immediately fetches GetVehiclePosition for
 // those call ids so position and "next stop" info advance together on
 // every tick. A tick is skipped rather than stacked if the previous one is

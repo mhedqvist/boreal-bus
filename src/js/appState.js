@@ -8,6 +8,12 @@ export const store = createStore({
   activeLineIds: new Set(), // line filter: ids currently shown
 
   selectedStop: null, // StopArea | null
+  stopSelectionSeq: 0, // bumped by stops.js on every select/clear action,
+  // including re-selecting the stop that is already selected. ui.js syncs
+  // the search box off this counter rather than off selectedStop.id, so
+  // clicking a stop on the map always restates it in the box (even after
+  // the user typed something else over it) while unrelated poll-tick
+  // re-renders still leave in-progress typing alone.
   calls: [], // flattened TransitCall[] for the selected stop
   isStopCancelled: false,
   messages: [], // TrafficMessage[] for the selected stop
@@ -17,8 +23,8 @@ export const store = createStore({
   // docs/initial_plan.md) - kept only as a secondary/fallback source; liveVehicles
   // below is the primary display source.
   liveVehicles: [], // [{ key, position, lineId, line, destination, journeyId,
-  // callIds, ageMs, stale, nextStop: { stopText, plannedTime, forecastTime,
-  // occupancyPercent } }], one entry per distinct physical bus, built by
+  // routeId, callIds, ageMs, stale, nextStop: { stopText, plannedTime,
+  // forecastTime } }], one entry per distinct physical bus, built by
   // calling GetVehiclePosition for the representative call id(s) of every
   // journey in journeyVehicles and deduping same-instant/same-location
   // results (see live-vehicles.js - VehiclePosition.id merely echoes the
@@ -39,8 +45,9 @@ export const store = createStore({
   // resolved once per stop via FindStopArea (see call-discovery.js) and
   // cached here for map.js to draw the stop circles. Stops don't move, so
   // this is populated once and never invalidated.
-  journeyVehicles: new Map(), // journeyId -> { sequenceNumber, lineId, line,
-  // destination, journey, stopText, arrival, departure, callIds: string[] },
+  journeyVehicles: new Map(), // journeyId -> { sequenceNumber, lineId,
+  // routeId, line, destination, journey, stopText, arrival, departure,
+  // callIds: string[] },
   // one entry per currently running journey/bus, rebuilt from scratch on
   // every call-discovery.js scan. callIds holds the call id(s) for the stop
   // with that journey's earliest future forecast - usually 1, but 2 when a

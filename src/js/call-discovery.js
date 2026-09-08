@@ -140,6 +140,7 @@ function buildJourneyVehicles(callsWithStop) {
     result.set(journeyId, {
       sequenceNumber: call.sequenceNumber,
       lineId: call.lineId,
+      routeId: call.routeId,
       line: call.line, // short display name, e.g. "Röd." - TransitCall.line,
       // distinct from the long route-description Line.text
       destination: call.destination,
@@ -158,7 +159,7 @@ let inFlight = null;
 // The frequent part of discovery: scans GetCalls for every already-known
 // stop (from the cached stop list - see refreshStopsList above) and
 // rebuilds journeyVehicles from scratch each pass, so nextStop/planned/
-// expected/occupancy data in the Live buses table - and the call ids that
+// expected data in the Live buses table - and the call ids that
 // live-vehicles.js fetches positions for - stay fresh. Run on the same
 // cadence as the live-vehicle position poll (see poller.js); this no
 // longer re-derives the stop list itself, so it's just one GetCalls

@@ -85,6 +85,7 @@ export async function fetchAllLiveVehicles({ signal } = {}) {
       line: info.line,
       destination: info.destination,
       journeyId,
+      routeId: info.routeId,
       callIds: [callId],
       ageMs,
       stale,
@@ -93,7 +94,6 @@ export async function fetchAllLiveVehicles({ signal } = {}) {
         stopText: info.stopText,
         plannedTime: forecast?.plannedTime ?? null,
         forecastTime: forecast?.forecastTime ?? null,
-        occupancyPercent: forecast?.occupancyPercent ?? null,
       },
     };
 
