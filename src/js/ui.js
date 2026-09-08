@@ -5,6 +5,8 @@ import { formatTime, minutesUntil } from './clock.js';
 import { colorForLineId } from './lineColors.js';
 import { selectVehicle } from './vehicleSelection.js';
 
+const TABLE_MAX_POSITION_AGE_MS = 15 * 60 * 1000;
+
 export function initUi() {
   wireSearch();
   wireVehicleTableClicks();
@@ -39,7 +41,9 @@ function renderVehiclesTable(state) {
   // Primary source: liveVehicles (from live-vehicles.js's per-callId scan
   // across every known call town-wide), one row per distinct physical bus.
   const visibleVehicles = state.liveVehicles.filter(
-    (bus) => bus.lineId === undefined || state.activeLineIds.has(bus.lineId)
+    (bus) =>
+      (bus.lineId === undefined || state.activeLineIds.has(bus.lineId)) &&
+      (bus.ageMs == null || Number.isNaN(bus.ageMs) || bus.ageMs <= TABLE_MAX_POSITION_AGE_MS)
   );
 
   if (!visibleVehicles.length) {
