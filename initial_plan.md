@@ -381,3 +381,48 @@ Three issues surfaced while using the round 5 build:
   `setTimeout(() => marker.closeTooltip(), 3000)`, while the marker
   highlight persists until the row is clicked again - the tooltip was
   previously staying open indefinitely and covering the map.
+
+## Post-implementation revisions round 7 (next stop by forecast time, stop circles)
+
+The Live buses table's "Next stop" was wrong: two Yellow buses at clearly
+different map positions showed the *same* next stop.
+
+- **Root cause was in the position dedupe, not the grouping.** Calls were
+  already grouped by `journeyId`, so the bug was one layer further down.
+  `GetVehiclePosition` returns the *same* GPS fix for every journey
+  currently assigned to a physical bus - including that bus's **later
+  trips of the day**. `live-vehicles.js` deduped those onto one vehicle by
+  `(lat, lon, timestamp)` and kept whichever result arrived **first**,
+  which is nondeterministic (pooled request completion order). So a bus
+  could be labelled with a future journey's next stop, and two different
+  buses could inherit labels that made them look identical. Verified live:
+  4 Yellow journeys collapsed onto just 2 physical GPS fixes.
+- **Fix**: when several journeys share one physical position, keep the one
+  whose next forecast is **soonest in the future** (past-dated forecasts
+  rank last, missing ones last of all), merging the call ids. After the
+  fix the two Yellow buses correctly resolved to *Signalen* and
+  *Porfyren*.
+- **Next stop is now chosen by earliest future forecast time**, not lowest
+  `sequenceNumber`. `buildJourneyVehicles` keeps every call for a journey,
+  filters to those whose `arrival ?? departure` `forecastTime` is still in
+  the future (server-clock adjusted via `clock.js`'s `now()`), and picks
+  the soonest; `sequenceNumber` survives only as a tie-breaker and as a
+  fallback when a journey has no future-dated call left (sitting at its
+  terminus). Verified live that both methods currently agree for all 15
+  running journeys - the API does prune passed calls - but time-based
+  selection *structurally cannot* surface a stop the bus has already left,
+  which lowest-`sequenceNumber` would as soon as any stop's `GetCalls`
+  response were stale or cached.
+- **Stop circles on the map.** `GetStopAreas` returns every stop with
+  `location` unset (confirmed live: 0 of 45 Kiruna stops had coordinates),
+  but `FindStopArea` *does* populate it for the same stop text. So
+  `call-discovery.js` resolves each unique stop once via `FindStopArea`
+  into a new `stopLocations` store map (stops don't move, so it's never
+  invalidated), and `map.js` draws a small `circleMarker` per stop on its
+  own layer between the routes and the vehicles. Clicking a circle selects
+  that stop directly - necessary because the circle would otherwise
+  swallow the map-level click that resolves a stop via
+  `FindStopsNearLocation`.
+- Buses whose last position fix is older than **15 minutes** are now
+  omitted from the Live buses table entirely (the existing "stale" styling
+  still covers the 3-15 minute window); map behaviour is unchanged.

@@ -29,8 +29,8 @@ function positionKey(position) {
 
 // Fetches GetVehiclePosition only for each journey's representative call
 // id(s) (journeyVehicles, built by call-discovery.js's town-wide scan -
-// the call id with the lowest/next-upcoming sequenceNumber per journey),
-// then dedupes onto distinct physical vehicles so every live bus can be
+// the call whose stop has the earliest future forecast per journey), then
+// dedupes onto distinct physical vehicles so every live bus can be
 // plotted on its route simultaneously. This is a small, bus-sized request
 // set (roughly one or two calls per running journey) rather than every
 // call id town-wide, which would be ~15x larger since a journey's call id
@@ -50,43 +50,67 @@ export async function fetchAllLiveVehicles({ signal } = {}) {
     api.getVehiclePosition(entry.callId, { signal })
   );
 
+  const currentTime = now();
   const byKey = new Map();
   results.forEach((res, i) => {
     if (res.status !== 'fulfilled' || !res.value?.location) return;
     const { callId, journeyId, info } = entries[i];
     const key = positionKey(res.value);
-    const ageMs = now() - new Date(res.value.timestamp).getTime();
+    const ageMs = currentTime - new Date(res.value.timestamp).getTime();
     const stale = !Number.isNaN(ageMs) && ageMs > STALE_THRESHOLD_MS;
+
+    // Prefer the arrival forecast for "next stop" info (when the bus is
+    // expected to reach that upcoming stop); fall back to departure for
+    // a call representing the very start of a journey, which may only
+    // have a departure forecast.
+    const forecast = info.arrival ?? info.departure ?? null;
+    const forecastMs = new Date(forecast?.forecastTime ?? '').getTime();
+    // GetVehiclePosition can return the exact same GPS fix for multiple
+    // journeys assigned to the same physical bus, including future trips.
+    // During position deduplication, choose the journey whose next forecast
+    // is closest in the future. The old "first result wins" behavior made
+    // metadata depend on nondeterministic stop-scan completion order and
+    // could label two buses with an unrelated future journey's next stop.
+    const forecastRank = Number.isNaN(forecastMs)
+      ? Number.POSITIVE_INFINITY
+      : forecastMs >= currentTime
+        ? forecastMs - currentTime
+        : Number.MAX_SAFE_INTEGER + (currentTime - forecastMs);
+    const candidate = {
+      key,
+      position: res.value,
+      lineId: info.lineId,
+      line: info.line,
+      destination: info.destination,
+      journeyId,
+      callIds: [callId],
+      ageMs,
+      stale,
+      forecastRank,
+      nextStop: {
+        stopText: info.stopText,
+        plannedTime: forecast?.plannedTime ?? null,
+        forecastTime: forecast?.forecastTime ?? null,
+        occupancyPercent: forecast?.occupancyPercent ?? null,
+      },
+    };
+
     const existing = byKey.get(key);
-    if (existing) {
-      existing.callIds.push(callId);
+    if (!existing) {
+      byKey.set(key, candidate);
+      return;
+    }
+
+    const allCallIds = [...new Set([...existing.callIds, callId])];
+    if (candidate.forecastRank < existing.forecastRank) {
+      candidate.callIds = allCallIds;
+      byKey.set(key, candidate);
     } else {
-      // Prefer the arrival forecast for "next stop" info (when the bus is
-      // expected to reach that upcoming stop); fall back to departure for
-      // a call representing the very start of a journey, which may only
-      // have a departure forecast.
-      const forecast = info.arrival ?? info.departure ?? null;
-      byKey.set(key, {
-        key,
-        position: res.value,
-        lineId: info.lineId,
-        line: info.line,
-        destination: info.destination,
-        journeyId,
-        callIds: [callId],
-        ageMs,
-        stale,
-        nextStop: {
-          stopText: info.stopText,
-          plannedTime: forecast?.plannedTime ?? null,
-          forecastTime: forecast?.forecastTime ?? null,
-          occupancyPercent: forecast?.occupancyPercent ?? null,
-        },
-      });
+      existing.callIds = allCallIds;
     }
   });
 
-  const liveVehicles = [...byKey.values()];
+  const liveVehicles = [...byKey.values()].map(({ forecastRank, ...vehicle }) => vehicle);
   store.set({ liveVehicles });
   return liveVehicles;
 }

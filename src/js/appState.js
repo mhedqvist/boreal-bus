@@ -34,13 +34,18 @@ export const store = createStore({
 
   lineRoutes: new Map(), // lineId -> Set<routeId>, discovered lazily
   routeGeometry: new Map(), // routeId -> MapRoute
+  stopLocations: new Map(), // stopAreaId -> { text, location: {lat, lon} }.
+  // GetStopAreas omits `location` for every stop, so coordinates are
+  // resolved once per stop via FindStopArea (see call-discovery.js) and
+  // cached here for map.js to draw the stop circles. Stops don't move, so
+  // this is populated once and never invalidated.
   journeyVehicles: new Map(), // journeyId -> { sequenceNumber, lineId, line,
   // destination, journey, stopText, arrival, departure, callIds: string[] },
   // one entry per currently running journey/bus, rebuilt from scratch on
-  // every call-discovery.js scan. callIds holds the call id(s) at that
-  // journey's lowest (next-upcoming) sequenceNumber - usually 1, but 2 when
-  // a journey has a main + reinforcement/extra vehicle both reporting at
-  // the same stop. live-vehicles.js fetches GetVehiclePosition only for
+  // every call-discovery.js scan. callIds holds the call id(s) for the stop
+  // with that journey's earliest future forecast - usually 1, but 2 when a
+  // journey has a main + reinforcement/extra vehicle both reporting at the
+  // same stop. live-vehicles.js fetches GetVehiclePosition only for
   // these call ids (a small, bus-sized set) instead of every call id
   // town-wide (which would be ~15x larger - see initial_plan.md). `line` is
   // TransitCall.line (short display name, e.g. "Röd.").

@@ -223,6 +223,14 @@ the marker silently.
   upcoming stop on its journey), all returning the identical `location` +
   `timestamp`. To deduplicate to one row per physical bus, group results by
   a derived key such as `${lat}|${lon}|${timestamp}`, not by `id`.
+- ⚠ That dedupe key merges **different journeys**, not just different calls
+  of the same journey: a physical bus returns the same fix for its *later
+  trips of the day* too (observed: 4 running Yellow journeys collapsed onto
+  2 distinct positions). So after grouping, choose which journey's metadata
+  to display — the one whose next stop's `forecastTime` is soonest in the
+  future. Keeping whichever response happens to arrive first will label a
+  bus with a future journey's next stop, and can make two distinct buses
+  appear to be heading to the same place.
 - Neither `VehiclePosition` nor `TransitCall` has any "in service" / active
   flag. A call whose vehicle hasn't reported recently (trip finished,
   vehicle offline, or a scheduled-only journey with no vehicle assigned
@@ -361,7 +369,7 @@ may appear).
 | `id` | integer (int64) | required |
 | `externalId` | string? | e.g. `"84064"` |
 | `text` | string | required, e.g. `"Stadshustorget (84064)"` |
-| `location` | [`Location`](#location)? | nullable |
+| `location` | [`Location`](#location)? | nullable — ⚠ **unset by `GetStopAreas`** (0 of 45 Kiruna stops had it); `FindStopArea` does return it for the same stop text |
 
 ### FindStopAreaRequest
 | Field | Type | Required |
@@ -416,13 +424,13 @@ may appear).
 ### TransitCall
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `id` | string | yes | call id — pass to `GetVehiclePosition`. ⚠ Observed to be per-(journey, remaining stop): the same journey gets a **new, distinct `id` at every upcoming stop along its route** (one journey observed with 37 distinct call ids). To track one physical bus without redundant polling, group calls by `journeyId` and use only the call(s) with the lowest `sequenceNumber` (see `journeyId` row below and `call-discovery.js`). |
+| `id` | string | yes | call id — pass to `GetVehiclePosition`. ⚠ Observed to be per-(journey, remaining stop): the same journey gets a **new, distinct `id` at every upcoming stop along its route** (one journey observed with 37 distinct call ids). To track one physical bus without redundant polling, group calls by `journeyId` and use only the call for the stop with the earliest future `forecastTime` (see `journeyId` row below and `call-discovery.js`). |
 | `key` | string | yes | e.g. `"1"` |
 | `lineId` | integer (int64) | yes | |
 | `routeId` | integer (int64) | yes | pass to `GetMapRoute` |
 | `journeyId` | integer (int64) | yes | Identifies one real trip/vehicle-run. Stable across the many per-stop `id`s of the same journey — the right key for deduplicating "which calls belong to the same bus" instead of `id`. A journey can have 2 physical vehicles (main + reinforcement/"extra" bus) sharing one `journeyId`, distinguishable by having 2 different `id`s at the same `sequenceNumber`. |
 | `stopPointId` | integer (int64) | yes | |
-| `sequenceNumber` | integer (int32) | yes | Position of this call's stop along the journey's remaining route (0 = next stop). Lower = sooner; use the minimum per `journeyId` to find "where is this bus headed next". |
+| `sequenceNumber` | integer (int32) | yes | Position of this call's stop along the journey's **whole route** — ⚠ **not** a countdown to the next stop (values of 17 and 20 observed for a bus's immediate next stop). Useful as a tie-breaker for ordering, but to find "where is this bus headed next", pick the call whose `arrival ?? departure` `forecastTime` is the earliest one still in the future. |
 | `line` | string | yes | e.g. `"Röd."` |
 | `lineAppearance` | [`LineAppearance`](#lineappearance) | yes | ⚠ observed unreliable for color |
 | `journey` | string | yes | |
@@ -509,7 +517,9 @@ in `initial_plan.md`'s "Post-implementation revisions" sections):
    active buses — use `GetVehiclePosition` (singular) per known call id
    instead.
 4. `VehiclePosition.id` is just the echoed `callId`, not a stable vehicle
-   identity — dedupe physical vehicles by `(lat, lon, timestamp)`.
+   identity — dedupe physical vehicles by `(lat, lon, timestamp)`. ⚠ But
+   see quirk #9: that dedupe merges *different journeys*, so which
+   journey's metadata you keep matters.
 5. Neither schema exposes an explicit "in service" flag — infer it from
    `VehiclePosition.timestamp` age.
 6. `GetStopAreas` accepts `directionId: null` for an all-directions query.
@@ -519,4 +529,23 @@ in `initial_plan.md`'s "Post-implementation revisions" sections):
    stops) — polling `GetVehiclePosition` for every call id town-wide sends
    far more requests than there are real buses (176 call ids observed for
    only 12 running journeys at that moment). Group by `journeyId` and use
-   only the call(s) with the lowest `sequenceNumber` per journey instead.
+   one representative call per journey instead (see quirk #10 for which).
+9. `GetVehiclePosition` returns the **same GPS fix for several different
+   `journeyId`s** — a physical bus reports the same position for its
+   *later trips of the day*, not just its current one (observed live: 4
+   running Yellow journeys collapsed onto only 2 distinct positions). When
+   deduping positions onto physical vehicles, pick the journey whose next
+   forecast is soonest in the future; keeping whichever result arrives
+   first will mislabel buses with a future journey's next stop.
+10. `GetStopAreas` returns every `StopArea` with `location` **unset**
+    (0 of 45 Kiruna stops had coordinates), while `FindStopArea` *does*
+    return `location` for the same stop text. Resolve stop coordinates via
+    `FindStopArea` — once per stop, since stops don't move.
+11. `GetCalls` appears to prune calls the vehicle has already passed, so
+    the lowest `sequenceNumber` and the earliest future `forecastTime`
+    normally identify the same "next stop" (verified identical for all 15
+    running journeys at one sample). Prefer selecting by earliest future
+    `forecastTime` anyway: it structurally cannot surface an already-passed
+    stop if a response is stale or cached. Note `sequenceNumber` is a
+    position along the whole route (values of 17, 20 seen for a next stop),
+    **not** a countdown where 0 means "next".

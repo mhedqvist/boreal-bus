@@ -6,6 +6,7 @@ import { colorForLineId } from './lineColors.js';
 let map = null;
 let vehicleLayer = null;
 let routeLayer = null;
+let stopLayer = null;
 let stopMarker = null;
 // Tracks the previously-applied vehicle selection so panning/opening the
 // tooltip only happens once, right when the selection changes - not on
@@ -32,6 +33,7 @@ export function initMap(containerId) {
   L.tileLayer(tileUrl, { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 
   routeLayer = L.layerGroup().addTo(map);
+  stopLayer = L.layerGroup().addTo(map);
   vehicleLayer = L.layerGroup().addTo(map);
 
   map.on('click', async (e) => {
@@ -60,7 +62,32 @@ function placeStopMarker(stop) {
 function render(state) {
   if (!map) return;
   renderRoutes(state);
+  renderStops(state);
   renderVehicles(state);
+}
+
+// Every stop served by any line, drawn as a small circle. Coordinates come
+// from state.stopLocations (resolved via FindStopArea in call-discovery.js,
+// since GetStopAreas omits them). Clicking a circle selects that stop
+// directly - the circle would otherwise swallow the map's click handler,
+// which resolves a stop via FindStopsNearLocation.
+function renderStops(state) {
+  stopLayer.clearLayers();
+  const selectedId = state.selectedStop?.id;
+  for (const [stopId, entry] of state.stopLocations.entries()) {
+    const isSelected = stopId === selectedId;
+    const circle = L.circleMarker([entry.location.lat, entry.location.lon], {
+      radius: isSelected ? 7 : 4,
+      color: '#ffffff',
+      weight: 2,
+      fillColor: isSelected ? '#1a5fb4' : '#444444',
+      fillOpacity: 1,
+      bubblingMouseEvents: false,
+    });
+    circle.bindTooltip(entry.text, { direction: 'top' });
+    circle.on('click', () => selectStopArea({ id: stopId, text: entry.text, location: entry.location }));
+    circle.addTo(stopLayer);
+  }
 }
 
 function renderRoutes(state) {

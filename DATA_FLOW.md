@@ -53,6 +53,7 @@ Key fields and who writes them:
 | `liveVehicles` | `live-vehicles.js` | `map.js`, `ui.js` (primary live-bus source) |
 | `lineRoutes`, `routeGeometry` | `routes.js` (`recordRouteIdsFromCalls`, `fetchGeometries`) | `map.js` (route polylines) |
 | `journeyVehicles` | `call-discovery.js` (`buildJourneyVehicles`) | `live-vehicles.js` (which call ids to fetch positions for, plus line/destination/next-stop labels) |
+| `stopLocations` | `call-discovery.js` (`resolveStopLocations`, via `FindStopArea`) | `map.js` (stop circles) |
 | `selectedVehicleJourneyId` | `vehicleSelection.js` (row click) | `map.js` (marker highlight/pan), `ui.js` (row highlight) |
 | `clockOffsetMs` | `clock.js` | `live-vehicles.js` (staleness math) |
 | `errors.*` | every fetch module, on failure | `ui.js` (`renderStatus`) |
@@ -79,7 +80,9 @@ applied):
    fetchAllLiveVehicles()                    [live-vehicles.js]
      reads store.journeyVehicles (one entry per running journey)
      → runPooled(representative callIds, concurrency=15, GetVehiclePosition)
-     → dedupe results into physical vehicles by (lat, lon, timestamp) key
+     → dedupe results into physical vehicles by (lat, lon, timestamp) key,
+       keeping the journey whose next forecast is soonest in the future
+       (one bus's later trips of the day report the same GPS fix)
      → tag each with ageMs/stale using clock.js's server-corrected now()
      → attach line, journeyId, and nextStop {stopText, plannedTime,
        forecastTime, occupancyPercent} from the representative call
@@ -103,6 +106,9 @@ applied):
    refreshStopsList()                        [call-discovery.js]
      GetStopAreas(lineId, null) for every line, pooled  → dedupe by stop.id
      → cachedStops (module-level, not in the store)
+     → FindStopArea per not-yet-resolved stop, pooled
+          (GetStopAreas omits `location`; FindStopArea returns it)
+       → store.stopLocations  (stopAreaId -> {text, location})
    ```
 
    **`refreshCallDiscovery`** (every 15s, driven by `pollLiveVehicles`
@@ -117,10 +123,13 @@ applied):
      → fetchGeometries(routeIds)              [routes.js]
           GetMapRoute per new routeId → store.routeGeometry
      → buildJourneyVehicles(callsWithStop)
-          group by journeyId, keep only the call id(s) at the lowest
-          sequenceNumber (that journey's next upcoming stop; 2 ids when a
-          reinforcement bus is running), capturing line/destination/
-          stopText/arrival/departure
+          group by journeyId, keep the call for the stop with the earliest
+          forecastTime still in the future (arrival ?? departure, compared
+          against clock.js's server-adjusted now(); sequenceNumber is only
+          a tie-breaker, and the lowest one a fallback when nothing is
+          future-dated), plus any sibling call id at that same stop for a
+          reinforcement bus, capturing line/destination/stopText/
+          arrival/departure
      → store.set({ journeyVehicles })         (rebuilt from scratch, so
                                                finished journeys drop out)
    ```
@@ -155,6 +164,13 @@ Subscribed to the store; re-renders on every `store.set(...)` anywhere:
   scaled/glowing wrapper class; on the render immediately following a
   selection change (tracked via a module-level `lastSelectedJourneyId`)
   the map pans to it once and opens its tooltip for 3 seconds.
+- **Stops**: a small `circleMarker` for every entry in
+  `state.stopLocations`, on its own layer between the routes and the
+  vehicles, with the stop name as a tooltip. The currently selected stop
+  is drawn larger and in blue. Clicking a circle calls `selectStopArea`
+  directly (with `bubblingMouseEvents: false`) — the circle would
+  otherwise swallow the map-level click that resolves a stop via
+  `FindStopsNearLocation`.
 - **Stop selection**: a map click calls `FindStopsNearLocation`
   [`stops.js`], and on a hit, marks the clicked stop and calls
   `selectStopArea`, which updates `store.selectedStop` (triggering
@@ -173,9 +189,10 @@ independent pieces:
   completely unknown (normally already populated by the town-wide
   discovery scan).
 - **Live buses table**: same `state.liveVehicles` data as the map
-  markers, filtered by `activeLineIds`, one row per physical bus (line
-  badge with the short line name, destination, next stop with its planned
-  and expected times, occupancy percentage, last-updated time, Live/Stale
+  markers, filtered by `activeLineIds` and to buses whose last position
+  fix is under 15 minutes old, one row per physical bus (line badge with
+  the short line name, destination, next stop with its planned and
+  expected times, occupancy percentage, last-updated time, Live/Stale
   status). Each row carries a `data-journey-id`; a single delegated click
   listener (bound once, since the table's `innerHTML` is rebuilt every
   tick) calls `selectVehicle(journeyId)` [`vehicleSelection.js`], which
