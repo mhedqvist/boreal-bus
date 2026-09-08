@@ -1,0 +1,246 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-cancelled: #b3261e;
+  --color-disturbance: #b3261e;
+  --color-info: #1a5fb4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f5f5f5;
+  color: #1a1a1a;
+}
+
+.app-header {
+  padding: 0.75rem 1rem;
+  background: #12233c;
+  color: #fff;
+}
+
+.app-header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.25rem;
+}
+
+.banner {
+  margin: 0.25rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.banner-error,
+.banner-status {
+  background: #402020;
+  color: #ffdada;
+}
+
+.banner-cancelled,
+.banner-disturbance {
+  background: #fbeaea;
+  color: var(--color-disturbance);
+  border: 1px solid var(--color-disturbance);
+}
+
+.banner-info {
+  background: #e8f0fb;
+  color: var(--color-info);
+  border: 1px solid var(--color-info);
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  height: calc(100vh - 90px);
+}
+
+.map-panel {
+  min-height: 300px;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.filters-panel,
+.stop-panel,
+.arrivals-panel,
+.live-buses-panel {
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.filters-panel h2,
+.stop-panel h2,
+.arrivals-panel h2,
+.live-buses-panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.line-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.line-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.stop-search {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.stop-search input {
+  flex: 1;
+  padding: 0.4rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.stop-search button {
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 4px;
+  background: #eee;
+  cursor: pointer;
+}
+
+.stop-search-results {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.stop-search-results li {
+  padding: 0.35rem 0.4rem;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+}
+
+.stop-search-results li:hover {
+  background: #f0f4fa;
+}
+
+.arrivals-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.arrivals-table th,
+.arrivals-table td {
+  padding: 0.35rem 0.4rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.line-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.message-row {
+  font-size: 0.8rem;
+  color: var(--color-disturbance);
+  background: #fff7f7;
+}
+
+.hint {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.status-live {
+  color: #1b7f3a;
+  font-weight: 600;
+}
+
+.status-stale {
+  color: #8a6d00;
+  font-weight: 600;
+}
+
+.row-stale {
+  opacity: 0.7;
+}
+
+.row-selected {
+  background: #eaf2ff;
+  outline: 2px solid #1a5fb4;
+  outline-offset: -2px;
+}
+
+.arrivals-table tbody tr[data-journey-id] {
+  cursor: pointer;
+}
+
+.arrivals-table tbody tr[data-journey-id]:hover {
+  background: #f5f8ff;
+}
+
+/* Directional vehicle marker: a CSS triangle pointing north (0deg) by
+   default, rotated via an inline transform on the INNER element (see
+   map.js) to match VehiclePosition.heading. Scale/glow for the selected
+   state live on the OUTER wrapper instead of the rotated element, since an
+   inline `transform: rotate(...)` would otherwise fully override any
+   `transform: scale(...)` set by a CSS class on the same element
+   (inline styles beat stylesheet rules regardless of specificity). */
+.vehicle-icon-wrapper {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.15s ease;
+}
+
+.vehicle-icon-wrapper--selected {
+  transform: scale(1.35);
+  filter: drop-shadow(0 0 5px #1a5fb4) drop-shadow(0 0 2px #1a5fb4);
+}
+
+.vehicle-arrow {
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 16px solid #555555; /* overridden inline per-marker color */
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+  transform-origin: 50% 60%;
+}
+
+.vehicle-arrow--stale {
+  opacity: 0.45;
+}
