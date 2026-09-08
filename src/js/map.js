@@ -84,7 +84,7 @@ function renderStops(state) {
       fillOpacity: 1,
       bubblingMouseEvents: false,
     });
-    circle.bindTooltip(entry.text, { direction: 'top' });
+    circle.bindTooltip(textTooltip(entry.text), { direction: 'top' });
     circle.on('click', () => selectStopArea({ id: stopId, text: entry.text, location: entry.location }));
     circle.addTo(stopLayer);
   }
@@ -142,7 +142,7 @@ function renderVehicles(state) {
       bus.lineId !== undefined ? `${shortLineLabel(bus, state)} → ${bus.destination}` : `Bus (call ${bus.callIds[0]})`;
     const nextStopLabel = bus.nextStop?.stopText ? ` | next: ${bus.nextStop.stopText}` : '';
     const label = bus.stale ? `${nameLabel}${nextStopLabel} (stale, ${formatAge(bus.ageMs)} ago)` : `${nameLabel}${nextStopLabel}`;
-    marker.bindTooltip(label, { direction: 'top' });
+    marker.bindTooltip(textTooltip(label), { direction: 'top' });
     marker.addTo(vehicleLayer);
 
     if (isSelected) {
@@ -183,4 +183,10 @@ function formatAge(ageMs) {
 
 function lineTextFor(state, lineId) {
   return state.lines.find((l) => l.id === lineId)?.text ?? `Line ${lineId}`;
+}
+
+function textTooltip(text) {
+  const element = document.createElement('span');
+  element.textContent = text ?? '';
+  return element;
 }

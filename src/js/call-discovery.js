@@ -170,17 +170,30 @@ export function refreshCallDiscovery() {
     const stops = cachedStops ?? [];
     if (!stops.length) return;
     const callsWithStop = [];
+    let successfulStops = 0;
     await runPooled(stops, STOP_DISCOVERY_CONCURRENCY, async (stop) => {
       try {
         const resp = await api.getCalls({ fromStopAreaQuery: stop.text, lineId: 0 });
         const flat = (resp.calls ?? []).flatMap((group) => group.calls ?? []);
         recordRouteIdsFromCalls(flat);
         for (const call of flat) callsWithStop.push({ call, stopText: stop.text });
+        successfulStops += 1;
       } catch {
         // One stop failing shouldn't abort the whole town-wide scan.
       }
     });
-    store.set({ journeyVehicles: buildJourneyVehicles(callsWithStop) });
+
+    if (successfulStops === 0) {
+      store.set({
+        errors: { ...store.get().errors, vehicles: 'Unable to refresh live bus data.' },
+      });
+      return;
+    }
+
+    store.set({
+      journeyVehicles: buildJourneyVehicles(callsWithStop),
+      errors: { ...store.get().errors, vehicles: null },
+    });
   })().finally(() => {
     inFlight = null;
   });

@@ -12,6 +12,9 @@ let requestSeq = 0;
 // Debounced, stale-response-guarded autocomplete search.
 export function searchStops(query, onResults) {
   clearTimeout(debounceTimer);
+  requestSeq += 1;
+  autocompleteAbort?.abort();
+  autocompleteAbort = null;
   if (!query || query.trim().length < MIN_QUERY_LENGTH) {
     onResults([]);
     return;

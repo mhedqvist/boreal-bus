@@ -50,6 +50,8 @@ export async function fetchAllLiveVehicles({ signal } = {}) {
     api.getVehiclePosition(entry.callId, { signal })
   );
 
+  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+
   const currentTime = now();
   const byKey = new Map();
   results.forEach((res, i) => {
@@ -109,6 +111,8 @@ export async function fetchAllLiveVehicles({ signal } = {}) {
       existing.callIds = allCallIds;
     }
   });
+
+  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
 
   const liveVehicles = [...byKey.values()].map(({ forecastRank, ...vehicle }) => vehicle);
   store.set({ liveVehicles });
