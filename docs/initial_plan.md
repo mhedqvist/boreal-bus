@@ -162,7 +162,8 @@ Static site, no build step. All code under a `/src` sub-folder:
 
 ## Milestones
 0. Once approved, copy this plan into the repo workspace as
-   `initial_plan.md` (repo root, alongside `README.md`/`openapi.yaml`) for
+   `docs/initial_plan.md` (alongside the API and data-flow documentation;
+   `README.md` and `openapi.yaml` remain at the repository root) for
    contributor reference, and create the `/src` sub-folder for all app code.
 1. Config/lines wiring + static server on localhost; visible failure if
    config load fails.

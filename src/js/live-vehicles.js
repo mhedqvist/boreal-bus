@@ -12,7 +12,7 @@ const VEHICLE_FETCH_CONCURRENCY = 15;
 // scheduled-only with no real vehicle assigned yet) still gets echoed back
 // by GetVehiclePosition with its last known fix, which is why some markers
 // otherwise look "live" but never move. Anything older than this is flagged
-// stale (shown, not hidden - see initial_plan.md error-handling philosophy)
+// stale (shown, not hidden - see docs/initial_plan.md error-handling philosophy)
 // rather than silently dropped, since an occasional slow GPS update is
 // normal and shouldn't make a real in-service bus disappear.
 export const STALE_THRESHOLD_MS = 3 * 60 * 1000;
@@ -34,7 +34,7 @@ function positionKey(position) {
 // plotted on its route simultaneously. This is a small, bus-sized request
 // set (roughly one or two calls per running journey) rather than every
 // call id town-wide, which would be ~15x larger since a journey's call id
-// changes at every remaining stop along its route (see initial_plan.md).
+// changes at every remaining stop along its route (see docs/initial_plan.md).
 export async function fetchAllLiveVehicles({ signal } = {}) {
   const { journeyVehicles } = store.get();
   const entries = [];

@@ -1,6 +1,6 @@
 import { createStore } from './state.js';
 
-// Single shared application state. See initial_plan.md for the rationale
+// Single shared application state. See docs/initial_plan.md for the rationale
 // behind each field (esp. lineRoutes/routeGeometry and the
 // journeyVehicles/liveVehicles design).
 export const store = createStore({
@@ -14,7 +14,7 @@ export const store = createStore({
 
   vehicles: [], // VehiclePosition[] from the town-wide GetVehiclePositions
   // endpoint. Observed to return [] live even when buses are running (see
-  // initial_plan.md) - kept only as a secondary/fallback source; liveVehicles
+  // docs/initial_plan.md) - kept only as a secondary/fallback source; liveVehicles
   // below is the primary display source.
   liveVehicles: [], // [{ key, position, lineId, line, destination, journeyId,
   // callIds, ageMs, stale, nextStop: { stopText, plannedTime, forecastTime,
@@ -47,7 +47,7 @@ export const store = createStore({
   // journey has a main + reinforcement/extra vehicle both reporting at the
   // same stop. live-vehicles.js fetches GetVehiclePosition only for
   // these call ids (a small, bus-sized set) instead of every call id
-  // town-wide (which would be ~15x larger - see initial_plan.md). `line` is
+  // town-wide (which would be ~15x larger - see docs/initial_plan.md). `line` is
   // TransitCall.line (short display name, e.g. "Röd.").
 
   clockOffsetMs: 0, // serverTime - clientTime, from GetSystemTimestamp

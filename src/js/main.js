@@ -21,7 +21,7 @@ async function main() {
   // initPoller kicks off the town-wide call-discovery scan (call-discovery.js)
   // and the per-callId live-vehicle scan (live-vehicles.js), which together
   // populate routes/markers/the live buses table without any user
-  // interaction (see initial_plan.md).
+  // interaction (see docs/initial_plan.md).
   initPoller();
 }
 

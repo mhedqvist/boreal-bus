@@ -2,7 +2,7 @@ import { store } from './appState.js';
 
 // The API's own LineAppearance.background is unreliable for this purpose
 // (e.g. GetMapRoute for the Röd/red line was observed returning "#000000"
-// black - see initial_plan.md). Colors are instead derived from the Swedish
+// black - see docs/initial_plan.md). Colors are instead derived from the Swedish
 // color-name each line is known by, matched against Line.text.
 const LINE_COLOR_RULES = [
   { match: /gr(ö|o)n/i, color: '#2e7d32', name: 'green' }, // Grön

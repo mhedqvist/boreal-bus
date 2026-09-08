@@ -199,7 +199,7 @@ function renderArrivals(state) {
       const affected = affectedByCallId.get(call.id) ?? [];
       const delayMin = forecast ? minutesUntil(forecast.forecastTime) : null;
       // Derived from the line name, not TransitCall.lineAppearance (the API's
-      // own appearance colors were observed unreliable - see initial_plan.md
+      // own appearance colors were observed unreliable - see docs/initial_plan.md
       // and lineColors.js).
       const bg = colorForLineId(call.lineId);
       const fg = '#ffffff';

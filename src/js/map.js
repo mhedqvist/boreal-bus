@@ -17,12 +17,12 @@ let lastSelectedJourneyId = null;
 // Kiruna, Sweden. GetConfigOptions' centerLat/centerLon were observed
 // returning a generic Boreal default (Kongsberg, Norway) rather than a
 // Kiruna-specific center, so the map always opens on Kiruna regardless of
-// what the config response reports (see initial_plan.md).
+// what the config response reports (see docs/initial_plan.md).
 const KIRUNA_CENTER = [67.8558, 20.2253];
 const KIRUNA_ZOOM = 14;
 
 // Assumes the global `L` (Leaflet, loaded via <script> in index.html - see
-// initial_plan.md for why a CDN script tag was used instead of a bundler).
+// docs/initial_plan.md for why a CDN script tag was used instead of a bundler).
 export function initMap(containerId) {
   const cfg = getConfig();
   const minZoom = cfg?.minZoom ?? 10;
@@ -109,7 +109,7 @@ function renderVehicles(state) {
   // Primary source: liveVehicles, built by live-vehicles.js from a
   // per-callId GetVehiclePosition scan across every call known town-wide
   // (call-discovery.js). Each entry already carries its line/destination,
-  // so markers can be colored/labeled directly (see initial_plan.md - the
+  // so markers can be colored/labeled directly (see docs/initial_plan.md - the
   // town-wide GetVehiclePositions endpoint itself was observed returning
   // no data even while buses were running).
   const selectedId = state.selectedVehicleJourneyId;
