@@ -27,7 +27,7 @@ main()
  │     initial render of (empty) filters/table/arrivals/status
  │
  └─ 5. initPoller()                     [poller.js]
-       starts all four independent polling loops (see §2)
+       immediately starts four polling schedules (see §3)
 ```
 
 All of `map.js`/`ui.js` render purely as a **function of the shared
@@ -55,15 +55,16 @@ Key fields and who writes them:
 | `journeyVehicles` | `call-discovery.js` (`buildJourneyVehicles`) | `live-vehicles.js` (which call ids to fetch positions for, plus line/destination/next-stop labels) |
 | `stopLocations` | `call-discovery.js` (`resolveStopLocations`, via `FindStopArea`) | `map.js` (stop circles) |
 | `selectedVehicleJourneyId` | `vehicleSelection.js` (row click) | `map.js` (marker highlight/pan), `ui.js` (row highlight) |
-| `clockOffsetMs` | `clock.js` | `live-vehicles.js` (staleness math) |
+| `clockOffsetMs` | `clock.js` | `call-discovery.js` (future-stop selection), `live-vehicles.js` (staleness), `ui.js` (countdowns) |
 | `errors.*` | every fetch module, on failure | `ui.js` (`renderStatus`) |
 
 ## 3. Continuous polling loops (`poller.js`)
 
-Four independent interval loops, each with its own `AbortController` and
-guarded by a shared `generation` counter (bumped on stop select/deselect
-and on pause/resume, so a response for stale state is discarded instead of
-applied):
+Four schedules run from `poller.js`. The vehicle and selected-stop request
+families use `AbortController`; a shared `generation` counter is bumped on
+stop select/deselect and pause/resume so responses tied to stale UI state
+are discarded. `pollLiveVehicles` deliberately sequences call discovery
+before position fetching rather than running them independently:
 
 1. **`pollVehicles`** (15s) — `GetVehiclePositions` (town-wide, plural).
    Kept only as a fallback; in practice this consistently returns `[]`
@@ -224,28 +225,25 @@ Deselecting a stop (`clearSelectedStop`) does the reverse: bumps
 ## 7. End-to-end picture
 
 ```
-        ┌─────────────────────────┐
-        │      appState store      │◄───────────────────────────┐
-        └───────────┬──────────────┘                             │
-                     │ subscribe/render                           │ store.set()
-        ┌────────────┴────────────┐                    ┌──────────┴──────────┐
-        │   map.js / ui.js         │                    │  fetch/derive layer  │
-        │  (pure render of state)  │                    │  poller.js orchestrates:
-        └──────────────────────────┘                    │   - pollVehicles (fallback)
-                                                          │   - pollLiveVehicles
-        │       (refreshCallDiscovery
-        │        then position fetch)
-        │   - pollCalls (stop-scoped)
-        │   - refreshStopsList (5 min)
-                                                          └──────────┬──────────┘
-                                                                     │ calls
-                                                          ┌──────────┴──────────┐
-                                                          │   api.js (fetch +   │
-                                                          │  profile headers +  │
-                                                          │  AbortController)   │
-                                                          └──────────┬──────────┘
-                                                                     │ HTTP
-                                                          Boreal AnyRide API
+Boreal AnyRide API
+        │ HTTP
+        ▼
+api.js (headers, timeout, cancellation, typed errors)
+        │
+        ▼
+poller.js + fetch/derive modules
+  ├─ pollVehicles (15s, bulk endpoint fallback)
+  ├─ pollLiveVehicles (15s)
+  │    ├─ refreshCallDiscovery
+  │    └─ fetchAllLiveVehicles
+  ├─ pollCalls (15s while a stop is selected)
+  └─ refreshStopsList (5 min)
+        │ store.set(...)
+        ▼
+appState.js shared store
+        │ subscriber notification
+        ▼
+map.js + ui.js (render state; no direct API fetches)
 ```
 
 Everything downstream of `api.js` ends up as a `store.set(...)` call;

@@ -1,10 +1,76 @@
-# Boreal AnyRide API
+# Kiruna Live Bus Tracker
 
-This folder documents the JSON API used by the real-time information page at
-<https://lokaltrafikenkiruna.se/realtidsinformation/>.
+A browser-based live transit map for Kiruna, Sweden, built with plain
+HTML/CSS/JavaScript and Leaflet. It calls the Boreal AnyRide API directly;
+there is no backend, package manager, build step, or local database.
 
-The page embeds the Boreal AnyRide client at <https://boreal.tmix.se/anyride/>.
-The client calls an undocumented HTTP API:
+## Features
+
+- All discovered bus routes, colored by their Swedish line names.
+- Directional vehicle arrows using each position's reported heading.
+- Live buses table with short line name, destination, next stop, planned and
+  expected arrival, occupancy, update time, and freshness status.
+- Click a table row to pan to and highlight that bus; its tooltip closes after
+  three seconds while the highlight remains. Click the row again to clear it.
+- All bus stops shown as clickable circles; selecting one displays its live
+  arrivals. Stops can also be selected through autocomplete or a map click.
+- Client-side line filters apply to routes, vehicle markers, and table rows.
+- Automatic refresh every 15 seconds; polling pauses in a hidden browser tab
+  and resumes immediately when the tab becomes visible.
+- Positions older than three minutes are marked stale. Positions older than
+  15 minutes remain visible on the map but are omitted from the table.
+
+## Run locally
+
+From the repository root:
+
+```powershell
+cd src
+python -m http.server 8765
+```
+
+Then open <http://localhost:8765/index.html>. Stop the server with `Ctrl+C`.
+An internet connection is required for Leaflet/OpenStreetMap assets and the
+Boreal API.
+
+## How live tracking works
+
+At startup the app loads configuration, lines, server-clock offset, route and
+stop data immediately. Every 15 seconds it:
+
+1. Fetches calls for all known stops.
+2. Groups calls by `journeyId` and selects each journey's earliest future
+   arrival/departure forecast as its next stop.
+3. Calls `GetVehiclePosition` for that representative call.
+4. Deduplicates identical `(latitude, longitude, timestamp)` fixes into
+   physical buses. Because the API also maps later journeys to the same bus,
+   the journey with the nearest future forecast supplies the displayed
+   destination and next-stop metadata.
+
+Stop coordinates are resolved once through `FindStopArea`, because
+`GetStopAreas` returns Kiruna stops without locations.
+
+## Project structure
+
+```text
+src/                  Static web application
+  index.html
+  css/app.css
+  js/*.js             ES modules; no bundler
+docs/API.md           Endpoint and schema reference plus observed quirks
+docs/DATA_FLOW.md     Current runtime architecture and data flow
+docs/initial_plan.md  Historical design plan and implementation revisions
+openapi.yaml          Machine-readable API contract
+```
+
+See [API documentation](docs/API.md) and
+[current data flow](docs/DATA_FLOW.md) for implementation details.
+
+## API background
+
+The API is used by the real-time information page at
+<https://lokaltrafikenkiruna.se/realtidsinformation/>, which embeds the Boreal
+AnyRide client at <https://boreal.tmix.se/anyride/>. The client calls:
 
 ```text
 https://boreal.tmix.se/Tmix.Cap.Ti.Process.AnyRide/api/

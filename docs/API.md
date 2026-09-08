@@ -2,9 +2,10 @@
 
 Unofficial reference for the undocumented API used by the Boreal AnyRide
 real-time information client embedded by Lokaltrafiken Kiruna. Derived from
-`openapi.yaml` (the formal contract) plus behavior observed while building
-the app in `/src` (see `initial_plan.md` for the app-level design decisions
-that resulted from these observations). This document describes **observed
+[`openapi.yaml`](../openapi.yaml) (the formal contract) plus behavior
+observed while building the app in `/src` (see `initial_plan.md` for the
+app-level design decisions that resulted from these observations). This
+document describes **observed
 behavior**, not an official stability guarantee from the API provider.
 
 - Base URL: `https://boreal.tmix.se/Tmix.Cap.Ti.Process.AnyRide/api`
@@ -257,10 +258,12 @@ a town-wide bulk endpoint.
 in live testing even while buses were actively running and individual
 `GetVehiclePosition(callId)` calls for the same buses returned real data.
 Because of this, the app does not rely on this endpoint for live vehicle
-data — it is kept only as an unused/fallback field (`state.vehicles`) and
-the primary live-vehicle feed is built by calling `GetVehiclePosition` once
-per known call id instead (see `live-vehicles.js` and the "Post-
-implementation revisions round 2" section of `initial_plan.md`).
+data — it is kept only as an unused/fallback field (`state.vehicles`). The
+primary feed groups calls by `journeyId`, selects one representative call
+(the stop with the earliest future forecast), and calls
+`GetVehiclePosition` for that small per-journey set. Identical position
+fixes are then deduplicated to physical buses; see `live-vehicles.js` and
+rounds 4 and 7 in `initial_plan.md`.
 
 ---
 
@@ -503,7 +506,7 @@ may appear).
 
 ## Summary of observed API quirks
 
-These are the behaviors the raw `openapi.yaml` contract doesn't capture,
+These are the behaviors the raw [`openapi.yaml`](../openapi.yaml) contract doesn't capture,
 discovered by exercising the live API while building the app (full context
 in `initial_plan.md`'s "Post-implementation revisions" sections):
 
@@ -514,8 +517,8 @@ in `initial_plan.md`'s "Post-implementation revisions" sections):
    unreliable for line coloring — derive color from the line's display
    text instead.
 3. `GetVehiclePositions` (plural, bulk) reliably returns `[]` even with
-   active buses — use `GetVehiclePosition` (singular) per known call id
-   instead.
+   active buses — use `GetVehiclePosition` (singular) for one
+   representative call per journey instead.
 4. `VehiclePosition.id` is just the echoed `callId`, not a stable vehicle
    identity — dedupe physical vehicles by `(lat, lon, timestamp)`. ⚠ But
    see quirk #9: that dedupe merges *different journeys*, so which

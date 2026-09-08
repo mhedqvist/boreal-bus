@@ -1,4 +1,13 @@
-# Boreal Live Bus Tracker — Implementation Plan (v2, post rubber-duck review)
+# Boreal Live Bus Tracker — Implementation Plan and Revision History
+
+> **Historical document.** The opening plan below records the architecture
+> originally approved before implementation. Later sections document each
+> change made from live API observations and user feedback, so earlier
+> sections intentionally mention superseded modules and behavior. For the
+> current runtime design, use [`DATA_FLOW.md`](DATA_FLOW.md); for setup and
+> current features, use the root [`README.md`](../README.md).
+
+The original approved plan (v2, after rubber-duck review) begins below.
 
 ## Problem
 Build a web page that shows Kiruna bus routes and live traffic: routes on a
