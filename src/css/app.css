@@ -204,20 +204,74 @@ button:focus-visible,
 
 .arrivals-table {
   width: 100%;
-  min-width: 34rem;
+  min-width: 30rem;
   border-collapse: collapse;
   font-size: 0.85rem;
+  table-layout: fixed;
 }
 
 .live-buses-table {
-  min-width: 46rem;
+  min-width: 34rem;
 }
 
 .arrivals-table th,
 .arrivals-table td {
-  padding: 0.35rem 0.4rem;
+  padding: 0.3rem 0.35rem;
   text-align: left;
   border-bottom: 1px solid #eee;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Give the free-text columns (destination, next stop) the bulk of the
+   width so the narrow time/status columns don't waste horizontal space -
+   table-layout: fixed means these ratios are respected even when cell
+   content is truncated with an ellipsis instead of wrapping/scrolling. */
+
+/* Stop-arrivals table: Line, Destination, Planned, Forecast, Quality */
+.arrivals-table:not(.live-buses-table) th:nth-child(1),
+.arrivals-table:not(.live-buses-table) td:nth-child(1) {
+  width: 12%;
+}
+.arrivals-table:not(.live-buses-table) th:nth-child(2),
+.arrivals-table:not(.live-buses-table) td:nth-child(2) {
+  width: 38%;
+}
+.arrivals-table:not(.live-buses-table) th:nth-child(3),
+.arrivals-table:not(.live-buses-table) td:nth-child(3),
+.arrivals-table:not(.live-buses-table) th:nth-child(4),
+.arrivals-table:not(.live-buses-table) td:nth-child(4) {
+  width: 16%;
+}
+.arrivals-table:not(.live-buses-table) th:nth-child(5),
+.arrivals-table:not(.live-buses-table) td:nth-child(5) {
+  width: 18%;
+}
+
+/* Live-buses table: Line, Destination, Next stop, Planned, Expected,
+   Updated, Status */
+.live-buses-table th:nth-child(1),
+.live-buses-table td:nth-child(1) {
+  width: 8%;
+}
+.live-buses-table th:nth-child(2),
+.live-buses-table td:nth-child(2),
+.live-buses-table th:nth-child(3),
+.live-buses-table td:nth-child(3) {
+  width: 22%;
+}
+.live-buses-table th:nth-child(4),
+.live-buses-table td:nth-child(4),
+.live-buses-table th:nth-child(5),
+.live-buses-table td:nth-child(5),
+.live-buses-table th:nth-child(6),
+.live-buses-table td:nth-child(6) {
+  width: 10%;
+}
+.live-buses-table th:nth-child(7),
+.live-buses-table td:nth-child(7) {
+  width: 18%;
 }
 
 .line-badge {
@@ -232,6 +286,12 @@ button:focus-visible,
   font-size: 0.8rem;
   color: var(--color-disturbance);
   background: #fff7f7;
+}
+
+.message-row td {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .hint {

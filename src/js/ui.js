@@ -113,7 +113,7 @@ function renderVehiclesTable(state) {
     const status = bus.stale
       ? `<span class="status-stale">Stale (${formatAge(bus.ageMs)} ago)</span>`
       : '<span class="status-live">Live</span>';
-    const nextStopText = bus.nextStop?.stopText ?? '—';
+    const nextStopText = stripStopId(bus.nextStop?.stopText) ?? '—';
     const planned = formatTime(bus.nextStop?.plannedTime);
     const expected = formatTime(bus.nextStop?.forecastTime);
     const rowClasses = [bus.stale ? 'row-stale' : '', bus.journeyId === state.selectedVehicleJourneyId ? 'row-selected' : '']
@@ -135,6 +135,14 @@ function renderVehiclesTable(state) {
   }
   parts.push('</tbody></table></div>');
   container.innerHTML = parts.join('');
+}
+
+// Stop.text from the transit API is formatted like "Stadshustorget (84064)"
+// (see docs/API.md, FindStopArea/Autocomplete) - the trailing "(id)" is
+// meant for round-tripping the id back into a query, not for display.
+function stripStopId(stopText) {
+  if (!stopText) return stopText;
+  return stopText.replace(/\s*\(\d+\)\s*$/, '');
 }
 
 function formatAge(ageMs) {
