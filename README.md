@@ -8,8 +8,10 @@ there is no backend, package manager, build step, or local database.
 
 - All discovered bus routes, colored by their Swedish line names. Route
   geometry and map polylines are reused while browsing instead of rebuilding
-  every route on updates. When differently colored routes share a road, just
-  that stretch uses alternating color dashes so neither line disappears.
+  every route on updates. Differently colored routes sharing a road run in
+  parallel lanes with a 1 px gap, returning to the road center where they
+  split; nearby bus markers follow their line's lane. Unshared stretches
+  and buses far from their route retain their original positions.
 - The API's LKAB-bound red route currently misses Skrädaregatan; only its
   Adolf Hedinsvägen–LKAB map segment uses the reverse of the API's return
   route. Stop times and the rest of the route are unchanged.

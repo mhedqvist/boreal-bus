@@ -9,8 +9,22 @@ test('moves existing bus markers without rebuilding unchanged routes and stops',
   const routes = [];
   const circles = [];
   const map = {
+    zoom: 14,
+    handlers: {},
     setView() { return this; },
-    on() {},
+    on(event, callback) { this.handlers[event] = callback; },
+    getZoom() { return this.zoom; },
+    project([lat, lon], zoom) {
+      const scale = 10_000 * 2 ** (zoom - 14);
+      return { x: lon * scale, y: lat * scale };
+    },
+    unproject([x, y], zoom) {
+      const scale = 10_000 * 2 ** (zoom - 14);
+      return { lat: y / scale, lng: x / scale };
+    },
+    distance([lat1, lon1], [lat2, lon2]) {
+      return Math.hypot((lat2 - lat1) * 111_320, (lon2 - lon1) * 42_000);
+    },
     panTo(position) { this.lastPan = position; },
   };
   globalThis.window = { addEventListener() {} };
@@ -45,6 +59,7 @@ test('moves existing bus markers without rebuilding unchanged routes and stops',
         addCount: 0,
         addTo() { this.addCount++; return this; },
         setStyle(style) { this.options = { ...this.options, ...style }; },
+        setLatLngs(next) { this.position = next; this.latLngUpdates = (this.latLngUpdates ?? 0) + 1; },
       };
       routes.push(polyline);
       return polyline;
@@ -157,15 +172,38 @@ test('moves existing bus markers without rebuilding unchanged routes and stops',
   });
   const sharedPaths = routes.slice(beforeOverlap);
   assert.equal(sharedPaths.length, 2);
-  assert.deepEqual(sharedPaths.map((route) => route.options.dashArray), ['8 8', '8 8']);
-  assert.notEqual(sharedPaths[0].options.dashOffset, sharedPaths[1].options.dashOffset);
+  assert.deepEqual(sharedPaths.map((route) => route.options.dashArray), [undefined, undefined]);
+  assert.notDeepEqual(sharedPaths[0].position, sharedPaths[1].position);
+  assert.deepEqual(sharedPaths[0].position[0][0], sharedPaths[1].position[0][0]);
+  assert.deepEqual(sharedPaths[0].position[0].at(-1), sharedPaths[1].position[0].at(-1));
 
-  store.set({ liveVehicles: [{ ...bus, ageMs: 1000 }] });
+  const visibleMarker = markers.at(-1);
+  const overlapGps = { lat: 67.865, lon: 20.235 };
+  store.set({
+    liveVehicles: [{ ...bus, position: { ...bus.position, location: overlapGps } }],
+  });
+  assert.notDeepEqual(visibleMarker.position, [overlapGps.lat, overlapGps.lon]);
+  const beforeZoomMarker = visibleMarker.position;
+  const beforeZoom = structuredClone(sharedPaths[0].position);
+  map.zoom = 15;
+  map.handlers.zoomend();
+  assert.equal(routes.length, beforeOverlap + 2);
+  assert.notDeepEqual(sharedPaths[0].position, beforeZoom);
+  assert.notDeepEqual(visibleMarker.position, beforeZoomMarker);
+  assert.deepEqual(sharedPaths.map((route) => route.latLngUpdates), [1, 1]);
+  assert.deepEqual(sharedPaths[0].position[0][0], beforeZoom[0][0]);
+
+  store.set({ liveVehicles: [{ ...bus, ageMs: 1000, position: { ...bus.position, location: overlapGps } }] });
   assert.equal(routes.length, beforeOverlap + 2);
   store.set({ activeLineIds: new Set([123]) });
+  assert.deepEqual(visibleMarker.position, [overlapGps.lat, overlapGps.lon]);
   assert.equal(routes.at(-1).options.dashArray, undefined);
   assert.equal(routes.at(-1).options.color, '#f9a825');
+  map.zoom = 16;
+  map.handlers.zoomend();
+  assert.equal(sharedPaths[1].latLngUpdates, 2);
   store.set({ activeLineIds: new Set([123, 124]) });
   assert.equal(sharedPaths[1].addCount, 2);
-  assert.equal(routes.at(-1).options.dashArray, '8 8');
+  assert.notDeepEqual(visibleMarker.position, [overlapGps.lat, overlapGps.lon]);
+  assert.equal(routes.at(-1).options.dashArray, undefined);
 });

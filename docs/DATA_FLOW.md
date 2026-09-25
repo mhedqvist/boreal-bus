@@ -111,9 +111,12 @@ before position fetching rather than running them independently:
    `map.js` keeps each Leaflet polyline and its route
    coordinates until that route's geometry changes; filtering only hides
    or shows it, and selecting a bus changes its style in place. Shared
-   segments of differently colored active routes use alternating dashes;
-   unshared segments remain solid. Panning and normal live updates do not
-   rebuild the route layers.
+   segments of differently colored active routes use parallel screen-pixel
+   offsets with a 1 px gap, tapering back at each end. Unshared segments
+   follow the original geometry. Zooming recomputes only the offset paths;
+   bus markers near a shared segment are placed on their own line's lane
+   (distant GPS positions stay untouched). Panning and normal live updates
+   do not rebuild the route layers.
 
 3. **`refreshStopsList`** (every 5 minutes) — the expensive half of
    discovery, split out so it doesn't gate the 15s data refresh. The set of

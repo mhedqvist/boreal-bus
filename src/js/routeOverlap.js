@@ -1,5 +1,4 @@
 const COORDINATE_SCALE = 100_000;
-const DASH_LENGTH = 8;
 
 function pointKey({ lat, lon }) {
   return `${Math.round(lat * COORDINATE_SCALE)},${Math.round(lon * COORDINATE_SCALE)}`;
@@ -52,8 +51,7 @@ export function routePartsForVisibleRoutes(routes) {
             key,
             shared: !!colors,
             paths: [],
-            dashArray: colors ? `${DASH_LENGTH} ${DASH_LENGTH * (colors.length - 1)}` : null,
-            dashOffset: colors ? String(-phase * DASH_LENGTH) : null,
+            laneIndex: colors ? phase - (colors.length - 1) / 2 : 0,
           });
         }
         current = parts.get(key);
