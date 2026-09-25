@@ -102,7 +102,13 @@ before position fetching rather than running them independently:
 
    Route geometry is cached in `store.routeGeometry` for the page session.
    `routes.js` shares an in-flight request when concurrent scans discover
-   the same route. `map.js` keeps each Leaflet polyline and its route
+   the same route. For the red LKAB-bound shape `540298`, the API currently
+   bypasses Skrädaregatan; `routes.js` fetches return shape `535423` and
+   replaces only the Adolf Hedinsvägen–LKAB approach with its reverse.
+   This correction checks both endpoints and Skrädaregatan, leaves an
+   already-corrected upstream shape alone, and reports `errors.routes`
+   rather than displaying an uncorrected path if it cannot be applied.
+   `map.js` keeps each Leaflet polyline and its route
    coordinates until that route's geometry changes; filtering only hides
    or shows it, and selecting a bus changes its style in place. Shared
    segments of differently colored active routes use alternating dashes;

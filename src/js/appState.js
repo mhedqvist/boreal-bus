@@ -62,6 +62,7 @@ export const store = createStore({
     config: null,
     lines: null,
     vehicles: null,
+    routes: null,
     calls: null,
     stopNotFound: null,
   },

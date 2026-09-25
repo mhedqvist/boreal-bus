@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { store } from './appState.js';
+import { LKAB_BOUND_ROUTE_ID, LKAB_RETURN_ROUTE_ID, correctLkabBoundRoute } from './routeCorrections.js';
 
 // NOTE: TransitCall exposes lineId but not directionId, so discovered route
 // variants are tracked per-line only (not per-direction), even though the
@@ -38,24 +39,60 @@ export function recordRouteIdsFromCalls(transitCalls) {
 }
 
 async function fetchGeometries(routeIds) {
-  const requests = routeIds.map((id) => {
-    const request = api.getMapRoute(id);
-    geometryRequests.set(id, request);
+  const ids = [...routeIds];
+  if (ids.includes(LKAB_BOUND_ROUTE_ID) &&
+      !store.get().routeGeometry.has(LKAB_RETURN_ROUTE_ID) && !ids.includes(LKAB_RETURN_ROUTE_ID)) {
+    ids.push(LKAB_RETURN_ROUTE_ID);
+  }
+  const requests = ids.map((id) => {
+    let request = geometryRequests.get(id);
+    if (!request) {
+      request = api.getMapRoute(id);
+      geometryRequests.set(id, request);
+    }
     return request;
   });
   try {
     const results = await Promise.allSettled(requests);
-    const routeGeometry = store.get().routeGeometry;
-    let next = null;
+    const state = store.get();
+    const next = new Map(state.routeGeometry);
+    let changed = false;
     results.forEach((res, i) => {
-      if (res.status === 'fulfilled' && res.value && !routeGeometry.has(routeIds[i])) {
-        if (!next) next = new Map(routeGeometry);
-        next.set(routeIds[i], res.value);
+      if (res.status === 'fulfilled' && res.value && !next.has(ids[i])) {
+        next.set(ids[i], res.value);
+        changed = true;
       }
     });
-    if (next) store.set({ routeGeometry: next });
+    let routesError = null;
+    if (ids.includes(LKAB_BOUND_ROUTE_ID)) {
+      const outbound = next.get(LKAB_BOUND_ROUTE_ID);
+      if (outbound) {
+        try {
+          const corrected = correctLkabBoundRoute(outbound, next.get(LKAB_RETURN_ROUTE_ID));
+          if (corrected !== outbound) {
+            next.set(LKAB_BOUND_ROUTE_ID, corrected);
+            changed = true;
+          }
+        } catch (error) {
+          next.delete(LKAB_BOUND_ROUTE_ID);
+          changed = true;
+          routesError = error.message;
+        }
+      } else {
+        routesError = 'Unable to load the LKAB-bound route geometry.';
+      }
+    }
+    const errorChanged = ids.includes(LKAB_BOUND_ROUTE_ID) && state.errors.routes !== routesError;
+    if (changed || errorChanged) {
+      store.set({
+        ...(changed ? { routeGeometry: next } : {}),
+        ...(errorChanged ? { errors: { ...state.errors, routes: routesError } } : {}),
+      });
+    }
   } finally {
-    routeIds.forEach((id) => geometryRequests.delete(id));
+    ids.forEach((id, i) => {
+      if (geometryRequests.get(id) === requests[i]) geometryRequests.delete(id);
+    });
   }
 }
 

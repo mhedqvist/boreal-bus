@@ -10,6 +10,9 @@ there is no backend, package manager, build step, or local database.
   geometry and map polylines are reused while browsing instead of rebuilding
   every route on updates. When differently colored routes share a road, just
   that stretch uses alternating color dashes so neither line disappears.
+- The API's LKAB-bound red route currently misses Skrädaregatan; only its
+  Adolf Hedinsvägen–LKAB map segment uses the reverse of the API's return
+  route. Stop times and the rest of the route are unchanged.
 - Directional vehicle arrows using each reported heading, falling back to
   the nearest route segment oriented toward the next stop when heading is
   unavailable.
