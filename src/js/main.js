@@ -4,6 +4,7 @@ import { initMap } from './map.js';
 import { initPoller } from './poller.js';
 import { initUi } from './ui.js';
 import { initClockOffset } from './clock.js';
+import { initCommuter } from './commuter.js';
 
 async function main() {
   try {
@@ -18,9 +19,10 @@ async function main() {
 
   initMap('map');
   initUi();
+  initCommuter();
   // initPoller kicks off the town-wide call-discovery scan (call-discovery.js)
   // and the per-callId live-vehicle scan (live-vehicles.js), which together
-  // populate routes/markers/the live buses table without any user
+  // populate routes/markers/the live buses list without any user
   // interaction (see docs/initial_plan.md).
   initPoller();
 }

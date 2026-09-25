@@ -12,6 +12,7 @@ import { store } from './appState.js';
 // vehicle bookkeeping (journeyVehicles) is handled separately in
 // call-discovery.js, since it needs a full town-wide batch to pick the
 // right representative call per journey (see there for why).
+const geometryRequests = new Map();
 export function recordRouteIdsFromCalls(transitCalls) {
   const { lineRoutes, routeGeometry } = store.get();
   let routesChanged = false;
@@ -25,7 +26,7 @@ export function recordRouteIdsFromCalls(transitCalls) {
       lineRoutes.set(call.lineId, set);
       routesChanged = true;
     }
-    if (!routeGeometry.has(call.routeId) && !toFetch.includes(call.routeId)) {
+    if (!routeGeometry.has(call.routeId) && !geometryRequests.has(call.routeId) && !toFetch.includes(call.routeId)) {
       toFetch.push(call.routeId);
     }
   }
@@ -37,16 +38,25 @@ export function recordRouteIdsFromCalls(transitCalls) {
 }
 
 async function fetchGeometries(routeIds) {
-  const { routeGeometry } = store.get();
-  const results = await Promise.allSettled(routeIds.map((id) => api.getMapRoute(id)));
-  let changed = false;
-  results.forEach((res, i) => {
-    if (res.status === 'fulfilled' && res.value) {
-      routeGeometry.set(routeIds[i], res.value);
-      changed = true;
-    }
+  const requests = routeIds.map((id) => {
+    const request = api.getMapRoute(id);
+    geometryRequests.set(id, request);
+    return request;
   });
-  if (changed) store.set({ routeGeometry: new Map(routeGeometry) });
+  try {
+    const results = await Promise.allSettled(requests);
+    const routeGeometry = store.get().routeGeometry;
+    let next = null;
+    results.forEach((res, i) => {
+      if (res.status === 'fulfilled' && res.value && !routeGeometry.has(routeIds[i])) {
+        if (!next) next = new Map(routeGeometry);
+        next.set(routeIds[i], res.value);
+      }
+    });
+    if (next) store.set({ routeGeometry: next });
+  } finally {
+    routeIds.forEach((id) => geometryRequests.delete(id));
+  }
 }
 
 const probeInFlight = new Set();

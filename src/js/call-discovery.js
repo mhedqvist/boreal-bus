@@ -89,9 +89,7 @@ async function resolveStopLocations(stops) {
 // sequenceNumber is kept.
 // This function also captures the next-stop name + planned/expected time
 // off that same representative call, for direct display in the UI.
-function buildJourneyVehicles(callsWithStop) {
-  const currentTime = now();
-
+export function buildJourneyData(callsWithStop, currentTime = now()) {
   // arrival is "when the bus reaches this stop" and is the right basis for
   // a next-stop ETA; mid-route calls commonly only carry departure, so it
   // stands in when arrival is absent.
@@ -112,6 +110,7 @@ function buildJourneyVehicles(callsWithStop) {
   }
 
   const result = new Map();
+  const journeyStops = new Map();
   for (const [journeyId, entries] of byJourney) {
     // Prefer the soonest stop the bus hasn't reached yet; fall back to the
     // earliest remaining stop by route order when every call is in the past
@@ -150,8 +149,30 @@ function buildJourneyVehicles(callsWithStop) {
       departure: call.departure ?? null,
       callIds,
     });
+
+    const upcoming = entries
+      .filter((entry) => {
+        const time = timeOf(entry.call);
+        return time == null || time > currentTime;
+      })
+      .sort((a, b) => a.call.sequenceNumber - b.call.sequenceNumber);
+    const seenStops = new Set();
+    const stops = [];
+    for (const entry of upcoming) {
+      const key = `${entry.call.sequenceNumber}|${entry.stopText}`;
+      if (seenStops.has(key)) continue;
+      seenStops.add(key);
+      const forecast = forecastOf(entry.call);
+      stops.push({
+        stopText: entry.stopText,
+        sequenceNumber: entry.call.sequenceNumber,
+        plannedTime: forecast?.plannedTime ?? null,
+        forecastTime: forecast?.forecastTime ?? null,
+      });
+    }
+    journeyStops.set(journeyId, stops);
   }
-  return result;
+  return { journeyVehicles: result, journeyStops };
 }
 
 let inFlight = null;
@@ -159,7 +180,7 @@ let inFlight = null;
 // The frequent part of discovery: scans GetCalls for every already-known
 // stop (from the cached stop list - see refreshStopsList above) and
 // rebuilds journeyVehicles from scratch each pass, so nextStop/planned/
-// expected data in the Live buses table - and the call ids that
+// expected data in the live bus cards - and the call ids that
 // live-vehicles.js fetches positions for - stay fresh. Run on the same
 // cadence as the live-vehicle position poll (see poller.js); this no
 // longer re-derives the stop list itself, so it's just one GetCalls
@@ -171,33 +192,30 @@ export function refreshCallDiscovery() {
     const stops = cachedStops ?? [];
     if (!stops.length) return;
     const callsWithStop = [];
-    let successfulStops = 0;
-    await runPooled(stops, STOP_DISCOVERY_CONCURRENCY, async (stop) => {
-      try {
-        const resp = await api.getCalls({ fromStopAreaQuery: stop.text, lineId: 0 });
-        const flat = (resp.calls ?? []).flatMap((group) => group.calls ?? []);
-        recordRouteIdsFromCalls(flat);
-        for (const call of flat) callsWithStop.push({ call, stopText: stop.text });
-        successfulStops += 1;
-      } catch {
-        // One stop failing shouldn't abort the whole town-wide scan.
-      }
+    const results = await runPooled(stops, STOP_DISCOVERY_CONCURRENCY, async (stop) => {
+      const resp = await api.getCalls({ fromStopAreaQuery: stop.text, lineId: 0 });
+      const flat = (resp.calls ?? []).flatMap((group) => group.calls ?? []);
+      recordRouteIdsFromCalls(flat);
+      return flat.map((call) => ({ call, stopText: stop.text }));
     });
-
-    if (successfulStops === 0) {
-      store.set({
-        errors: { ...store.get().errors, vehicles: 'Unable to refresh live bus data.' },
-      });
-      return;
-    }
+    const rateLimit = results.find((result) => result.status === 'rejected' && result.reason?.status === 429);
+    if (rateLimit) throw rateLimit.reason;
+    const successfulStops = results.filter((result) => result.status === 'fulfilled');
+    if (!successfulStops.length) throw results.find((result) => result.status === 'rejected')?.reason ??
+      new Error('Unable to refresh live bus data.');
+    for (const result of successfulStops) callsWithStop.push(...result.value);
 
     store.set({
-      journeyVehicles: buildJourneyVehicles(callsWithStop),
-      errors: { ...store.get().errors, vehicles: null },
+      ...buildJourneyData(callsWithStop),
+      errors: {
+        ...store.get().errors,
+        vehicles: successfulStops.length === stops.length
+          ? null
+          : `Live bus data is incomplete (${successfulStops.length}/${stops.length} stops refreshed).`,
+      },
     });
   })().finally(() => {
     inFlight = null;
   });
   return inFlight;
 }
-

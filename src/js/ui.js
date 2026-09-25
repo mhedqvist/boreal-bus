@@ -2,24 +2,34 @@ import { store } from './appState.js';
 import { toggleLine } from './filters.js';
 import { searchStops, selectStopByText, clearSelectedStop, cancelStopSearch } from './stops.js';
 import { formatTime, minutesUntil } from './clock.js';
-import { colorForLineId } from './lineColors.js';
+import { colorForLineId, lineColorOrderForId, textColorForLineId } from './lineColors.js';
 import { selectVehicle } from './vehicleSelection.js';
 
-const TABLE_MAX_POSITION_AGE_MS = 15 * 60 * 1000;
+const LIST_MAX_POSITION_AGE_MS = 15 * 60 * 1000;
+const TRIP_PREVIEW_STOPS = 3;
 
 export function initUi() {
   wireSearch();
-  wireVehicleTableClicks();
-  store.subscribe((state) => {
-    renderLineFilters(state);
+  wireVehicleCardClicks();
+  store.subscribe((state, prev) => {
+    if (state.lines !== prev.lines || state.activeLineIds !== prev.activeLineIds) renderLineFilters(state);
     renderStopSearchInput(state);
-    renderVehiclesTable(state);
-    renderArrivals(state);
-    renderStatus(state);
+    if (state.liveVehicles !== prev.liveVehicles || state.activeLineIds !== prev.activeLineIds ||
+        state.selectedVehicleJourneyId !== prev.selectedVehicleJourneyId ||
+        state.journeyStops !== prev.journeyStops || state.lines !== prev.lines) {
+      renderVehicleCards(state);
+    }
+    if (state.calls !== prev.calls || state.selectedStop !== prev.selectedStop ||
+        state.isStopCancelled !== prev.isStopCancelled || state.isCallsLoading !== prev.isCallsLoading ||
+        state.messages !== prev.messages || state.errors.calls !== prev.errors.calls ||
+        state.activeLineIds !== prev.activeLineIds || state.clockOffsetMs !== prev.clockOffsetMs) {
+      renderArrivals(state);
+    }
+    if (state.errors !== prev.errors) renderStatus(state);
   });
   renderLineFilters(store.get());
   renderStopSearchInput(store.get());
-  renderVehiclesTable(store.get());
+  renderVehicleCards(store.get());
   renderArrivals(store.get());
   renderStatus(store.get());
 }
@@ -56,85 +66,143 @@ function renderStopSearchInput(state) {
   }
 }
 
-// Delegated once at startup (rather than rebound on every render, since
-// renderVehiclesTable rewrites the table's innerHTML on every poll tick).
-function wireVehicleTableClicks() {
+function wireVehicleCardClicks() {
   const container = document.getElementById('live-buses');
   if (!container) return;
 
-  const activateRow = (row) => {
-    if (!row?.dataset.journeyId) return;
-    selectVehicle(Number(row.dataset.journeyId));
-  };
-
-  container.addEventListener('click', (e) => activateRow(e.target.closest('tr[data-journey-id]')));
-  container.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const row = e.target.closest('tr[data-journey-id]');
-    if (!row) return;
-    e.preventDefault();
-    activateRow(row);
+  container.addEventListener('click', (e) => {
+    const button = e.target.closest('button[data-journey-id]');
+    if (button && container.contains(button)) selectVehicle(Number(button.dataset.journeyId));
   });
 }
 
-function renderVehiclesTable(state) {
+function renderVehicleCards(state) {
   const container = document.getElementById('live-buses');
   if (!container) return;
+  const focusedJourney = container.contains(document.activeElement)
+    ? document.activeElement.closest('button[data-journey-id]')?.dataset.journeyId
+    : null;
+  const focusedTripJourney = container.contains(document.activeElement)
+    ? document.activeElement.closest('.trip-more')?.dataset.journeyId
+    : null;
+  const expandedTripJourney = container.querySelector('.trip-more[open]')?.dataset.journeyId;
 
-  // Primary source: liveVehicles (from live-vehicles.js's per-callId scan
-  // across every known call town-wide), one row per distinct physical bus.
   const visibleVehicles = state.liveVehicles.filter(
     (bus) =>
       (bus.lineId === undefined || state.activeLineIds.has(bus.lineId)) &&
-      (bus.ageMs == null || Number.isNaN(bus.ageMs) || bus.ageMs <= TABLE_MAX_POSITION_AGE_MS)
-  );
+      (bus.journeyId === state.selectedVehicleJourneyId ||
+        bus.ageMs == null || Number.isNaN(bus.ageMs) || bus.ageMs <= LIST_MAX_POSITION_AGE_MS)
+  ).sort((a, b) => {
+    const byColor = lineColorOrderForId(a.lineId) - lineColorOrderForId(b.lineId);
+    if (byColor) return byColor;
+    if (a.lineId !== b.lineId) return (a.lineId ?? Infinity) - (b.lineId ?? Infinity);
+    if (a.journeyId !== b.journeyId) return (a.journeyId ?? Infinity) - (b.journeyId ?? Infinity);
+    return (a.callIds?.[0] ?? a.destination ?? '').localeCompare(b.callIds?.[0] ?? b.destination ?? '');
+  });
 
   if (!visibleVehicles.length) {
-    container.innerHTML = '<h2>Live buses</h2><p class="hint">No live bus positions right now.</p>';
+    container.innerHTML = '<h2>Live buses</h2><p class="hint">No buses are reporting right now. You can still check departures at a stop.</p>';
+    if (focusedJourney) {
+      container.tabIndex = -1;
+      container.focus({ preventScroll: true });
+    }
     return;
   }
 
   const staleCount = visibleVehicles.filter((b) => b.stale).length;
   const subtitle = staleCount
-    ? `<p class="hint">${staleCount} of ${visibleVehicles.length} haven't reported a new position in a while (see Status column) - the API has no explicit "in service" flag, so this is inferred from position age.</p>`
+    ? `<p class="hint">${staleCount} ${staleCount === 1 ? 'bus has' : 'buses have'} an older position; check the updated time.</p>`
     : '';
 
   const parts = [
     `<h2>Live buses (${visibleVehicles.length})</h2>`,
     subtitle,
-    '<div class="table-scroll" tabindex="0" aria-label="Live buses table"><table class="arrivals-table live-buses-table"><thead><tr><th>Line</th><th>Destination</th><th>Next stop</th><th>Planned</th><th>Expected</th><th>Updated</th><th>Status</th></tr></thead><tbody>',
+    state.selectedVehicleJourneyId != null &&
+    !state.liveVehicles.some((bus) => bus.journeyId === state.selectedVehicleJourneyId)
+      ? '<p class="hint">The selected bus is no longer reporting a position.</p>' : '',
+    '<ul class="vehicle-list">',
   ];
+  const expandedJourneys = new Set();
   for (const bus of visibleVehicles) {
-    // Short display name (e.g. "Röd", trimming TransitCall.line's trailing
-    // period), not the long route-description Line.text.
     const lineText = bus.line ? bus.line.replace(/\.$/, '') : bus.lineId !== undefined ? lineTextFor(state, bus.lineId) : '—';
     const color = bus.lineId !== undefined ? colorForLineId(bus.lineId) : '#888888';
+    const foreground = bus.lineId !== undefined ? textColorForLineId(bus.lineId) : '#ffffff';
     const destination = bus.destination ?? '—';
     const status = bus.stale
-      ? `<span class="status-stale">Stale (${formatAge(bus.ageMs)} ago)</span>`
-      : '<span class="status-live">Live</span>';
+      ? `<span class="status-stale">Position ${formatAge(bus.ageMs)} old</span>`
+      : '<span class="status-live">Live position</span>';
     const nextStopText = stripStopId(bus.nextStop?.stopText) ?? '—';
     const planned = formatTime(bus.nextStop?.plannedTime);
     const expected = formatTime(bus.nextStop?.forecastTime);
-    const rowClasses = [bus.stale ? 'row-stale' : '', bus.journeyId === state.selectedVehicleJourneyId ? 'row-selected' : '']
-      .filter(Boolean)
-      .join(' ');
     const selected = bus.journeyId === state.selectedVehicleJourneyId;
-    const rowAttributes = bus.journeyId == null
+    const expanded = selected && !expandedJourneys.has(bus.journeyId);
+    if (expanded) expandedJourneys.add(bus.journeyId);
+    const tag = bus.journeyId == null ? 'div' : 'button';
+    const attributes = bus.journeyId == null
       ? ''
-      : ` data-journey-id="${bus.journeyId}" tabindex="0"${selected ? ' aria-current="true"' : ''}`;
-    parts.push(`<tr class="${rowClasses}"${rowAttributes}>
-      <td><span class="line-badge" style="background:${color};color:#ffffff">${escapeHtml(lineText)}</span></td>
-      <td>${escapeHtml(destination)}</td>
-      <td>${escapeHtml(nextStopText)}</td>
-      <td>${planned}</td>
-      <td>${expected}</td>
-      <td>${formatTime(bus.position.timestamp)}</td>
-      <td>${status}</td>
-    </tr>`);
+      : ` type="button" data-journey-id="${bus.journeyId}" aria-expanded="${expanded}"${expanded ? ` aria-controls="trip-${bus.journeyId}"` : ''}`;
+    parts.push(`<li><${tag} class="vehicle-card${selected ? ' vehicle-card--selected' : ''}${expanded ? ' vehicle-card--expanded' : ''}${bus.stale ? ' vehicle-card--stale' : ''}"${attributes}>
+      <span class="vehicle-card-main"><span class="line-badge" style="background:${color};color:${foreground}">${escapeHtml(lineText)}</span>
+        <strong class="vehicle-destination">${escapeHtml(destination)}</strong>
+        <span class="vehicle-time"><span class="vehicle-time-label">ETA</span>${expected}</span></span>
+      <span class="vehicle-card-next">Next: ${escapeHtml(nextStopText)}${planned !== '—' && planned !== expected ? ` <span class="hint">(planned ${planned})</span>` : ''}</span>
+      <span class="vehicle-card-meta"><span>Updated ${formatTime(bus.position.timestamp)}</span>${status}</span>
+    </${tag}>${expanded ? renderTripDetails(state, bus) : ''}</li>`);
   }
-  parts.push('</tbody></table></div>');
+  parts.push('</ul>');
   container.innerHTML = parts.join('');
+  const expandedTrip = container.querySelector('.trip-more');
+  if (expandedTrip && expandedTrip.dataset.journeyId === expandedTripJourney) expandedTrip.open = true;
+  if (expandedTrip && expandedTrip.dataset.journeyId === focusedTripJourney) {
+    expandedTrip.querySelector('summary').focus({ preventScroll: true });
+  }
+  if (focusedJourney) {
+    const button = [...container.querySelectorAll('button[data-journey-id]')]
+      .find((item) => item.dataset.journeyId === focusedJourney);
+    (button ?? container).focus({ preventScroll: true });
+  }
+}
+
+function renderTripDetails(state, bus) {
+  const stops = state.journeyStops.get(bus.journeyId) ?? [];
+  const delays = stops.map((stop) => delayLabel(stop.plannedTime, stop.forecastTime));
+  const commonDelay = delays.length && delays[0] && delays.every((delay) => delay === delays[0]) ? delays[0] : '';
+  const parts = [
+    `<div id="trip-${bus.journeyId}" class="vehicle-trip" aria-label="Upcoming stops">`,
+    `<div class="trip-heading"><h3>Upcoming stops</h3>${commonDelay ? `<span class="trip-delay">${commonDelay}</span>` : ''}</div>`,
+  ];
+  if (!stops.length) {
+    parts.push('<p class="hint">No upcoming stops are available for this trip.</p>');
+  } else {
+    const renderStop = (stop, delay) => {
+      const planned = formatTime(stop.plannedTime);
+      const expected = formatTime(stop.forecastTime ?? stop.plannedTime);
+      const plannedLabel = planned !== '—' && planned !== expected ? `Planned ${planned}` : '';
+      const change = !commonDelay && delay ? `<span class="trip-stop-change">${delay}</span>` : '';
+      return `<li class="trip-stop"${plannedLabel ? ` title="${escapeHtml(plannedLabel)}"` : ''}>
+        <span class="trip-stop-name">${escapeHtml(stripStopId(stop.stopText))}</span>
+        <span class="trip-stop-time">${expected}${change}</span>
+        ${plannedLabel ? `<span class="visually-hidden">${plannedLabel}</span>` : ''}</li>`;
+    };
+    parts.push('<ol class="trip-stops">');
+    for (let i = 0; i < Math.min(stops.length, TRIP_PREVIEW_STOPS); i++) {
+      parts.push(renderStop(stops[i], delays[i]));
+    }
+    parts.push('</ol>');
+    if (stops.length > TRIP_PREVIEW_STOPS) {
+      const remaining = stops.length - TRIP_PREVIEW_STOPS;
+      parts.push(`<details class="trip-more" data-journey-id="${bus.journeyId}"><summary>
+        <span class="trip-more-closed">Show ${remaining} more ${remaining === 1 ? 'stop' : 'stops'}</span>
+        <span class="trip-more-open">Hide remaining stops</span>
+      </summary><ol class="trip-stops" start="${TRIP_PREVIEW_STOPS + 1}">`);
+      for (let i = TRIP_PREVIEW_STOPS; i < stops.length; i++) {
+        parts.push(renderStop(stops[i], delays[i]));
+      }
+      parts.push('</ol></details>');
+    }
+  }
+  parts.push('</div>');
+  return parts.join('');
 }
 
 // Stop.text from the transit API is formatted like "Stadshustorget (84064)"
@@ -158,6 +226,11 @@ function lineTextFor(state, lineId) {
 function renderLineFilters(state) {
   const container = document.getElementById('line-filters');
   if (!container) return;
+  const summary = document.getElementById('lines-summary');
+  if (summary) {
+    const visible = state.lines.filter((line) => state.activeLineIds.has(line.id)).length;
+    summary.textContent = state.lines.length ? `${visible} of ${state.lines.length} shown` : 'Loading lines';
+  }
 
   const html = state.lines
     .map((line) => {
@@ -261,12 +334,16 @@ function renderArrivals(state) {
   const container = document.getElementById('arrivals');
   if (!container) return;
 
+  container.hidden = !state.selectedStop;
   if (!state.selectedStop) {
-    container.innerHTML = '<p class="hint">Search for a stop (or click the map) to see arrivals.</p>';
+    container.innerHTML = '';
     return;
   }
 
-  const parts = [`<h2>${escapeHtml(state.selectedStop.text)}</h2>`];
+  const parts = [
+    '<p class="section-kicker">Departures from</p>',
+    `<h2>${escapeHtml(stripStopId(state.selectedStop.text))}</h2>`,
+  ];
 
   if (state.isStopCancelled) {
     parts.push('<p class="banner banner-cancelled">All departures at this stop are cancelled.</p>');
@@ -293,38 +370,51 @@ function renderArrivals(state) {
 
   const visibleCalls = state.calls.filter((call) => state.activeLineIds.has(call.lineId));
 
-  if (!visibleCalls.length) {
-    parts.push('<p class="hint">No departures right now.</p>');
+  if (state.isCallsLoading && !visibleCalls.length) {
+    parts.push('<p class="hint" role="status">Checking departures…</p>');
+  } else if (!visibleCalls.length) {
+    const message = state.errors.calls ? 'Departures could not be refreshed. Please try again soon.'
+      : state.calls.length ? 'No departures match your line filters.' : 'No departures right now.';
+    parts.push(`<p class="hint">${message}</p>`);
   } else {
-    parts.push(
-      '<div class="table-scroll" tabindex="0" aria-label="Stop arrivals table"><table class="arrivals-table"><thead><tr><th>Line</th><th>Destination</th><th>Planned</th><th>Forecast</th><th>Quality</th></tr></thead><tbody>'
-    );
+    parts.push('<ul class="departure-list">');
     for (const call of visibleCalls) {
       const forecast = call.departure ?? call.arrival;
       const affected = affectedByCallId.get(call.id) ?? [];
-      const delayMin = forecast ? minutesUntil(forecast.forecastTime) : null;
-      // Derived from the line name, not TransitCall.lineAppearance (the API's
-      // own appearance colors were observed unreliable - see docs/initial_plan.md
-      // and lineColors.js).
+      const minutes = forecast ? minutesUntil(forecast.forecastTime) : null;
+      const countdown = minutes == null ? '' : minutes > 0 ? `In ${minutes} min`
+        : minutes >= -1 ? 'Due now' : `${-minutes} min ago`;
+      const expected = forecast ? formatTime(forecast.forecastTime) : '—';
+      const planned = forecast ? formatTime(forecast.plannedTime) : '—';
+      const delay = delayLabel(forecast?.plannedTime, forecast?.forecastTime);
       const bg = colorForLineId(call.lineId);
-      const fg = '#ffffff';
-      parts.push(`<tr>
-        <td><span class="line-badge" style="background:${bg};color:${fg}">${escapeHtml(call.line)}</span></td>
-        <td>${escapeHtml(call.destination)}</td>
-        <td>${forecast ? formatTime(forecast.plannedTime) : '—'}</td>
-        <td>${forecast ? `${formatTime(forecast.forecastTime)}${delayMin !== null ? ` (${delayMin} min)` : ''}` : '—'}</td>
-        <td>${forecast ? escapeHtml(forecast.quality) : '—'}</td>
-      </tr>`);
+      const fg = textColorForLineId(call.lineId);
+      const quality = forecast?.quality === 'realtime' ? 'Live estimate' : forecast?.quality;
+      parts.push(`<li class="departure-card">
+        <div class="departure-main"><span class="line-badge" style="background:${bg};color:${fg}">${escapeHtml(call.line)}</span>
+          <strong class="departure-destination">${escapeHtml(call.destination)}</strong>
+          <span class="departure-time"><span class="visually-hidden">Expected departure </span>${expected}</span></div>
+        <div class="departure-meta">${planned !== '—' ? `<span>Planned ${planned}</span>` : ''}
+          ${countdown ? `<span>${countdown}</span>` : ''}
+          ${delay ? `<span class="trip-delay">${delay}</span>` : ''}
+          ${quality ? `<span>${escapeHtml(quality)}</span>` : ''}</div>`);
       if (affected.length) {
-        parts.push(
-          `<tr class="message-row"><td colspan="5">${affected.map((m) => escapeHtml(m.text)).join('; ')}</td></tr>`
-        );
+        parts.push(`<p class="departure-message">${affected.map((m) => escapeHtml(m.text)).join('; ')}</p>`);
       }
+      parts.push('</li>');
     }
-    parts.push('</tbody></table></div>');
+    parts.push('</ul>');
   }
 
   container.innerHTML = parts.join('');
+}
+
+function delayLabel(plannedTime, forecastTime) {
+  if (!plannedTime || !forecastTime) return '';
+  const difference = Date.parse(forecastTime) - Date.parse(plannedTime);
+  if (!Number.isFinite(difference)) return '';
+  const minutes = Math.round(difference / 60000);
+  return minutes > 0 ? `${minutes} min late` : minutes < 0 ? `${-minutes} min early` : '';
 }
 
 function renderStatus(state) {
