@@ -6,24 +6,36 @@ there is no backend, package manager, build step, or local database.
 
 ## Features
 
-- All discovered bus routes, colored by their Swedish line names.
+- All discovered bus routes, colored by their Swedish line names. Route
+  geometry and map polylines are reused while browsing instead of rebuilding
+  every route on updates.
 - Directional vehicle arrows using each reported heading, falling back to
   the nearest route segment oriented toward the next stop when heading is
   unavailable.
-- Live buses table with short line name, destination, next stop, planned and
-  expected arrival, update time, and freshness status.
-- Click a table row to pan to and highlight that bus; its tooltip closes after
-  three seconds while the highlight remains. Click the row again to clear it.
-- All bus stops shown as clickable circles; selecting one displays its live
-  arrivals. Stops can also be selected through autocomplete or a map click.
-- Client-side line filters apply to routes, vehicle markers, and table rows.
+- Live bus cards are grouped by line color in a stable order rather than
+  reshuffling by ETA. They show line, destination, next stop, expected time,
+  planned time when it differs, last update, and position freshness.
+- Select a bus card to pan to and highlight that bus; its tooltip closes after
+  three seconds while the highlight remains. Click a bus marker to select it
+  too, or select it again to clear it. The selected card previews its next
+  three stops and offers the rest on demand, with expected times and delays
+  from already-fetched data.
+- All bus stops shown as clickable circles; selecting one displays its
+  departures and centers the map on that stop. Stops can also be selected
+  through autocomplete or a map click.
+- Save favorite stops locally for one-tap arrivals, or ask for nearby stops
+  using browser location permission.
+- Client-side line filters (under the Lines disclosure) apply to routes,
+  vehicle markers, and departure and bus cards.
 - Automatic refresh every 15 seconds; polling pauses in a hidden browser tab
-  and resumes immediately when the tab becomes visible.
+  and resumes immediately when the tab becomes visible. Failed live refreshes
+  back off, and existing bus markers move in place rather than being recreated.
 - Positions older than three minutes are marked stale. Positions older than
-  15 minutes remain visible on the map but are omitted from the table.
-- Responsive phone, tablet, and desktop layouts: phones and tablet portrait
-  use a map-first scrolling page, while tablet landscape and desktop use a
-  two-column map/sidebar view. Wide data tables scroll within their panels.
+  15 minutes remain visible on the map but are omitted from the list unless
+  that bus is selected.
+- On phones and tablet portrait, stop search comes before the map and
+  departures; tablet landscape and desktop use a map/sidebar layout. Bus
+  and departure cards fit narrow screens without horizontal scrolling.
 - Touch-sized controls plus keyboard navigation for stop suggestions and live
   bus selection.
 
@@ -38,7 +50,11 @@ python -m http.server 8765
 
 Then open <http://localhost:8765/index.html>. Stop the server with `Ctrl+C`.
 An internet connection is required for Leaflet/OpenStreetMap assets and the
-Boreal API.
+Boreal API. Nearby stops require browser location permission and a secure
+context (HTTPS or localhost); favorites are saved in that browser's local
+storage.
+
+Run the dependency-free checks with `node --test` (Node.js 22 or later).
 
 ## How live tracking works
 
@@ -53,6 +69,12 @@ stop data immediately. Every 15 seconds it:
    physical buses. Because the API also maps later journeys to the same bus,
    the journey with the nearest future forecast supplies the displayed
    destination and next-stop metadata.
+
+The scan also retains each journey's upcoming stops for the selected-bus trip
+view. The town-wide `GetVehiclePositions` endpoint is not polled: it has been
+observed to return no buses even while the per-call position endpoint works.
+The stop scan stays at 15 seconds so a bus's representative call ID can advance
+as it passes a stop; reusing call IDs for longer would need live validation.
 
 Stop coordinates are resolved once through `FindStopArea`, because
 `GetStopAreas` returns Kiruna stops without locations.
@@ -354,4 +376,3 @@ The endpoint returns `null` when no live position is available.
   <https://boreal.tmix.se/anyride/app.config.json>
 - Client source map:
   <https://boreal.tmix.se/anyride/app.bundle.js.map>
-

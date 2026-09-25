@@ -51,6 +51,9 @@ export async function fetchAllLiveVehicles({ signal } = {}) {
   );
 
   if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+  const rateLimit = results.find((result) => result.status === 'rejected' && result.reason?.status === 429);
+  if (rateLimit) throw rateLimit.reason;
+  if (results.every((result) => result.status === 'rejected')) throw results[0].reason;
 
   const currentTime = now();
   const byKey = new Map();

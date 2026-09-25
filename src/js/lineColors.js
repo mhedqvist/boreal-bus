@@ -21,3 +21,13 @@ export function colorForLineId(lineId) {
   const line = store.get().lines.find((l) => l.id === lineId);
   return line ? colorForLineText(line.text) : FALLBACK_COLOR;
 }
+
+export function lineColorOrderForId(lineId) {
+  const color = colorForLineId(lineId);
+  const index = LINE_COLOR_RULES.findIndex((rule) => rule.color === color);
+  return index === -1 ? LINE_COLOR_RULES.length : index;
+}
+
+export function textColorForLineId(lineId) {
+  return colorForLineId(lineId) === '#f9a825' ? '#1a1a1a' : '#ffffff';
+}

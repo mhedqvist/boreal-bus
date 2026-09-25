@@ -70,7 +70,11 @@ export function selectStopArea(stop) {
   store.set((state) => ({
     selectedStop: stop,
     stopSelectionSeq: state.stopSelectionSeq + 1,
-    errors: { ...state.errors, stopNotFound: null },
+    calls: [],
+    messages: [],
+    isStopCancelled: false,
+    isCallsLoading: true,
+    errors: { ...state.errors, calls: null, stopNotFound: null },
   }));
   onStopSelected();
 }

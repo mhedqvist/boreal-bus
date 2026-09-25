@@ -6,10 +6,14 @@
   <title>Kiruna Live Bus Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/trip.css" />
 </head>
 <body>
   <header class="app-header">
-    <h1>Kiruna Live Bus Tracker</h1>
+    <div class="header-title">
+      <h1>Kiruna buses</h1>
+      <p>Live map and departures</p>
+    </div>
     <p id="app-error" class="banner banner-error" role="alert" hidden></p>
     <p id="status-banner" class="banner banner-status" role="status" aria-live="polite" hidden></p>
   </header>
@@ -17,27 +21,42 @@
   <main class="app-layout">
     <section class="map-panel" aria-label="Live bus map">
       <div id="map"></div>
+      <span class="map-instruction">Tap a stop to see departures</span>
     </section>
 
     <aside class="side-panel">
-      <section class="filters-panel" aria-labelledby="lines-heading">
-        <h2 id="lines-heading">Lines</h2>
-        <div id="line-filters" class="line-filters"></div>
+      <section class="stop-panel" aria-labelledby="stop-heading">
+        <h2 id="stop-heading">Find a stop</h2>
+        <label class="visually-hidden" for="stop-search">Search for a bus stop</label>
+        <div class="stop-search-wrap">
+          <div class="stop-search">
+            <input id="stop-search" type="text" placeholder="Stop name or number" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="stop-search-results" aria-expanded="false" />
+            <button id="stop-clear" type="button">Clear</button>
+          </div>
+          <ul id="stop-search-results" class="stop-search-results" role="listbox"></ul>
+        </div>
+        <div class="stop-actions">
+          <button id="nearby-stops-button" type="button" class="nearby-stops-button">Find stops near me</button>
+          <button id="favorite-toggle" type="button" class="favorite-toggle" aria-pressed="false" hidden>Save this stop</button>
+        </div>
+        <p id="nearby-stops-status" class="hint" role="status" aria-live="polite" hidden></p>
+        <ul id="nearby-stops-list" class="nearby-stops-list"></ul>
+        <div id="saved-stops" class="commuter-favorites">
+          <h3 class="commuter-subheading">Saved stops</h3>
+          <ul id="favorite-stops-list" class="favorite-stops-list"></ul>
+          <p id="favorite-stops-empty" class="hint">Save this stop for quick access next time.</p>
+          <p id="favorites-status" class="hint" role="status" aria-live="polite" hidden></p>
+        </div>
       </section>
+
+      <section id="arrivals" class="arrivals-panel" aria-label="Stop departures" hidden></section>
+
+      <details class="filters-panel">
+        <summary id="lines-heading">Lines <span id="lines-summary" class="filters-summary">All lines</span></summary>
+        <div id="line-filters" class="line-filters"></div>
+      </details>
 
       <section id="live-buses" class="live-buses-panel" aria-label="Live buses"></section>
-
-      <section class="stop-panel" aria-labelledby="stop-heading">
-        <h2 id="stop-heading">Stop</h2>
-        <label class="visually-hidden" for="stop-search">Search for a bus stop</label>
-        <div class="stop-search">
-          <input id="stop-search" type="text" placeholder="Search stop, e.g. Stadshustorget" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="stop-search-results" aria-expanded="false" />
-          <button id="stop-clear" type="button">Clear</button>
-        </div>
-        <ul id="stop-search-results" class="stop-search-results" role="listbox"></ul>
-      </section>
-
-      <section id="arrivals" class="arrivals-panel" aria-label="Stop arrivals"></section>
     </aside>
   </main>
 

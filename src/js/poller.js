@@ -1,41 +1,25 @@
 import { store } from './appState.js';
-import { api } from './api.js';
 import { fetchCallsForSelectedStop } from './calls.js';
 import { refreshCallDiscovery, refreshStopsList } from './call-discovery.js';
 import { fetchAllLiveVehicles } from './live-vehicles.js';
 
-const VEHICLE_INTERVAL_MS = 15000; // town-wide GetVehiclePositions poll
 const LIVE_VEHICLES_INTERVAL_MS = 15000; // call-discovery scan + per-callId GetVehiclePosition scan
 const CALLS_INTERVAL_MS = 15000; // selected-stop GetCalls poll
 const STOPS_INTERVAL_MS = 5 * 60 * 1000; // stop-list refresh (rarely changes)
 
-let vehicleTimer = null;
 let liveVehiclesTimer = null;
 let callsTimer = null;
 let stopsTimer = null;
-let vehicleAbort = null;
 let callsAbort = null;
 let liveVehiclesAbort = null;
 let liveVehiclesRunning = false;
+let liveFailureCount = 0;
+let retryLiveAfter = 0;
 
 // Generation token: bumped on stop select/deselect and pause/resume so
 // in-flight responses tied to a stale state never get applied.
 let generation = 0;
 let paused = false;
-
-async function pollVehicles() {
-  const myGeneration = generation;
-  vehicleAbort?.abort();
-  vehicleAbort = new AbortController();
-  try {
-    const vehicles = await api.getVehiclePositions({ signal: vehicleAbort.signal });
-    if (myGeneration !== generation) return; // stale
-    store.set({ vehicles, errors: { ...store.get().errors, vehicles: null } });
-  } catch (err) {
-    if (err.name === 'AbortError' || myGeneration !== generation) return;
-    store.set({ errors: { ...store.get().errors, vehicles: err.message } });
-  }
-}
 
 // Scans GetCalls for every known stop to rebuild journeyVehicles (fresh
 // nextStop/planned/expected data + representative call ids -
@@ -44,7 +28,7 @@ async function pollVehicles() {
 // every tick. A tick is skipped rather than stacked if the previous one is
 // still running (both parts combined can take a few seconds).
 async function pollLiveVehicles() {
-  if (liveVehiclesRunning) return;
+  if (liveVehiclesRunning || Date.now() < retryLiveAfter) return;
   liveVehiclesRunning = true;
   const myGeneration = generation;
   liveVehiclesAbort?.abort();
@@ -54,8 +38,12 @@ async function pollLiveVehicles() {
     if (myGeneration !== generation) return; // stale
     await fetchAllLiveVehicles({ signal: liveVehiclesAbort.signal });
     if (myGeneration !== generation) return; // stale
+    liveFailureCount = 0;
+    retryLiveAfter = 0;
   } catch (err) {
     if (err.name !== 'AbortError' && myGeneration === generation) {
+      liveFailureCount += 1;
+      retryLiveAfter = Date.now() + Math.min(120000, LIVE_VEHICLES_INTERVAL_MS * 2 ** liveFailureCount);
       store.set({ errors: { ...store.get().errors, vehicles: err.message } });
     }
   } finally {
@@ -74,19 +62,8 @@ async function pollCalls() {
     if (myGeneration !== generation) return; // selection changed mid-flight
   } catch (err) {
     if (err.name === 'AbortError' || myGeneration !== generation) return;
-    store.set({ errors: { ...store.get().errors, calls: err.message } });
+    store.set({ isCallsLoading: false, errors: { ...store.get().errors, calls: err.message } });
   }
-}
-
-function startVehiclePolling() {
-  stopVehiclePolling();
-  pollVehicles();
-  vehicleTimer = setInterval(pollVehicles, VEHICLE_INTERVAL_MS);
-}
-
-function stopVehiclePolling() {
-  if (vehicleTimer) clearInterval(vehicleTimer);
-  vehicleTimer = null;
 }
 
 function startLiveVehiclesPolling() {
@@ -125,7 +102,6 @@ function stopDiscoveryPolling() {
 }
 
 export function initPoller() {
-  startVehiclePolling();
   startDiscoveryPolling();
   startLiveVehiclesPolling();
   document.addEventListener('visibilitychange', () => {
@@ -144,12 +120,11 @@ export function onStopSelected() {
 export function onStopDeselected() {
   generation += 1;
   stopCallsPolling();
-  store.set({ calls: [], isStopCancelled: false, messages: [] });
+  store.set({ calls: [], isStopCancelled: false, isCallsLoading: false, messages: [] });
 }
 
 function pause() {
   paused = true;
-  stopVehiclePolling();
   stopLiveVehiclesPolling();
   stopCallsPolling();
   stopDiscoveryPolling();
@@ -159,7 +134,7 @@ function resume() {
   if (!paused) return;
   paused = false;
   generation += 1; // discard anything that was in flight before pausing
-  startVehiclePolling();
+  retryLiveAfter = 0;
   startDiscoveryPolling();
   startLiveVehiclesPolling();
   if (store.get().selectedStop) startCallsPolling();

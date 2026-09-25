@@ -15,13 +15,10 @@ export const store = createStore({
   // the user typed something else over it) while unrelated poll-tick
   // re-renders still leave in-progress typing alone.
   calls: [], // flattened TransitCall[] for the selected stop
+  isCallsLoading: false,
   isStopCancelled: false,
   messages: [], // TrafficMessage[] for the selected stop
 
-  vehicles: [], // VehiclePosition[] from the town-wide GetVehiclePositions
-  // endpoint. Observed to return [] live even when buses are running (see
-  // docs/initial_plan.md) - kept only as a secondary/fallback source; liveVehicles
-  // below is the primary display source.
   liveVehicles: [], // [{ key, position, lineId, line, destination, journeyId,
   // routeId, callIds, ageMs, stale, nextStop: { stopText, plannedTime,
   // forecastTime } }], one entry per distinct physical bus, built by
@@ -30,10 +27,10 @@ export const store = createStore({
   // results (see live-vehicles.js - VehiclePosition.id merely echoes the
   // requested callId, so it can't be used as a vehicle identity by itself).
   // `line` is the short display name (TransitCall.line, e.g. "Röd."), used
-  // for compact table/tooltip display instead of the long Line.text.
+  // for compact card/tooltip display instead of the long Line.text.
 
   selectedVehicleJourneyId: null, // journeyId of the bus highlighted via a
-  // Live buses table row click (see vehicleSelection.js). Tracked by
+  // live bus card or map marker click (see vehicleSelection.js). Tracked by
   // journeyId, not liveVehicles[].key, because key is derived from
   // (lat, lon, timestamp) and changes every poll tick as a bus moves -
   // journeyId is the only identity that's stable across polls.
@@ -56,6 +53,8 @@ export const store = createStore({
   // these call ids (a small, bus-sized set) instead of every call id
   // town-wide (which would be ~15x larger - see docs/initial_plan.md). `line` is
   // TransitCall.line (short display name, e.g. "Röd.").
+  journeyStops: new Map(), // journeyId -> ordered upcoming stops with planned
+  // and forecast arrival/departure times, derived from the same call scan.
 
   clockOffsetMs: 0, // serverTime - clientTime, from GetSystemTimestamp
 
