@@ -104,8 +104,10 @@ before position fetching rather than running them independently:
    `routes.js` shares an in-flight request when concurrent scans discover
    the same route. `map.js` keeps each Leaflet polyline and its route
    coordinates until that route's geometry changes; filtering only hides
-   or shows it, and selecting a bus changes its style in place. Panning
-   and normal live updates do not rebuild the route layers.
+   or shows it, and selecting a bus changes its style in place. Shared
+   segments of differently colored active routes use alternating dashes;
+   unshared segments remain solid. Panning and normal live updates do not
+   rebuild the route layers.
 
 3. **`refreshStopsList`** (every 5 minutes) — the expensive half of
    discovery, split out so it doesn't gate the 15s data refresh. The set of

@@ -8,7 +8,8 @@ there is no backend, package manager, build step, or local database.
 
 - All discovered bus routes, colored by their Swedish line names. Route
   geometry and map polylines are reused while browsing instead of rebuilding
-  every route on updates.
+  every route on updates. When differently colored routes share a road, just
+  that stretch uses alternating color dashes so neither line disappears.
 - Directional vehicle arrows using each reported heading, falling back to
   the nearest route segment oriented toward the next stop when heading is
   unavailable.

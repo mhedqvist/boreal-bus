@@ -3,6 +3,7 @@ import { store } from './appState.js';
 import { selectStopsNearLocation, selectStopArea } from './stops.js';
 import { colorForLineId } from './lineColors.js';
 import { headingAlongRoute } from './routeHeading.js';
+import { routePartsForVisibleRoutes } from './routeOverlap.js';
 import { selectVehicle } from './vehicleSelection.js';
 
 let map = null;
@@ -162,6 +163,7 @@ function renderStops(state) {
 function renderRoutes(state, selectedRouteId) {
   const known = new Set();
   const visible = new Set();
+  const routes = [];
   for (const [lineId, routeIds] of state.lineRoutes.entries()) {
     for (const routeId of routeIds) {
       const geometry = state.routeGeometry.get(routeId);
@@ -170,33 +172,42 @@ function renderRoutes(state, selectedRouteId) {
       known.add(key);
       if (!state.activeLineIds.has(lineId)) continue;
       visible.add(key);
-      const color = colorForLineId(lineId);
-      const selected = state.selectedVehicleJourneyId != null && routeId === selectedRouteId;
-      let entry = routePolylines.get(key);
-      const style = { color, weight: selected ? 7 : 4, opacity: selected ? 1 : 0.8 };
-      if (!entry || entry.geometry !== geometry) {
-        if (entry?.visible) routeLayer.removeLayer(entry.polyline);
-        const latlngs = geometry.locations.map((loc) => [loc.lat, loc.lon]);
-        const polyline = L.polyline(latlngs, style).addTo(routeLayer);
-        entry = { polyline, geometry, color, selected, visible: true };
-        routePolylines.set(key, entry);
-      } else {
-        if (!entry.visible) {
-          entry.polyline.addTo(routeLayer);
-          entry.visible = true;
-        }
-        if (entry.color !== color || entry.selected !== selected) {
-          entry.polyline.setStyle(style);
-          entry.color = color;
-          entry.selected = selected;
-        }
+      routes.push({ key, routeId, geometry, color: colorForLineId(lineId) });
+    }
+  }
+  for (const route of routePartsForVisibleRoutes(routes)) {
+    const { key, geometry, color, layoutKey } = route;
+    const selected = state.selectedVehicleJourneyId != null && route.routeId === selectedRouteId;
+    const styleFor = (part) => ({
+      color,
+      weight: selected ? 7 : 4,
+      opacity: selected ? 1 : 0.8,
+      ...(part.shared ? { dashArray: part.dashArray, dashOffset: part.dashOffset, lineCap: 'butt' } : {}),
+    });
+    let entry = routePolylines.get(key);
+    if (!entry || entry.geometry !== geometry || entry.layoutKey !== layoutKey) {
+      if (entry?.visible) entry.polylines.forEach((polyline) => routeLayer.removeLayer(polyline));
+      entry = {
+        polylines: route.parts.map((part) => L.polyline(part.paths, styleFor(part)).addTo(routeLayer)),
+        geometry, layoutKey, color, selected, visible: true,
+      };
+      routePolylines.set(key, entry);
+    } else {
+      if (!entry.visible) {
+        entry.polylines.forEach((polyline) => polyline.addTo(routeLayer));
+        entry.visible = true;
+      }
+      if (entry.color !== color || entry.selected !== selected) {
+        entry.polylines.forEach((polyline, i) => polyline.setStyle(styleFor(route.parts[i])));
+        entry.color = color;
+        entry.selected = selected;
       }
     }
   }
   for (const [key, entry] of routePolylines) {
     if (visible.has(key)) continue;
     if (entry.visible) {
-      routeLayer.removeLayer(entry.polyline);
+      entry.polylines.forEach((polyline) => routeLayer.removeLayer(polyline));
       entry.visible = false;
     }
     if (!known.has(key)) routePolylines.delete(key);

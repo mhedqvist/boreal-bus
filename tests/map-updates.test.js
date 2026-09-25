@@ -143,4 +143,29 @@ test('moves existing bus markers without rebuilding unchanged routes and stops',
     stopSelectionSeq: 1,
   });
   assert.deepEqual(map.lastPan, [67.86, 20.23]);
+
+  const sharedLocations = store.get().routeGeometry.get(456).locations;
+  const beforeOverlap = routes.length;
+  store.set({
+    lines: [{ id: 123, text: 'Gul' }, { id: 124, text: 'Lila' }],
+    activeLineIds: new Set([123, 124]),
+    lineRoutes: new Map([[123, new Set([456])], [124, new Set([999])]]),
+    routeGeometry: new Map([
+      [456, store.get().routeGeometry.get(456)],
+      [999, { locations: [...sharedLocations].reverse() }],
+    ]),
+  });
+  const sharedPaths = routes.slice(beforeOverlap);
+  assert.equal(sharedPaths.length, 2);
+  assert.deepEqual(sharedPaths.map((route) => route.options.dashArray), ['8 8', '8 8']);
+  assert.notEqual(sharedPaths[0].options.dashOffset, sharedPaths[1].options.dashOffset);
+
+  store.set({ liveVehicles: [{ ...bus, ageMs: 1000 }] });
+  assert.equal(routes.length, beforeOverlap + 2);
+  store.set({ activeLineIds: new Set([123]) });
+  assert.equal(routes.at(-1).options.dashArray, undefined);
+  assert.equal(routes.at(-1).options.color, '#f9a825');
+  store.set({ activeLineIds: new Set([123, 124]) });
+  assert.equal(sharedPaths[1].addCount, 2);
+  assert.equal(routes.at(-1).options.dashArray, '8 8');
 });
