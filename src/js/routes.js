@@ -6,12 +6,19 @@ import { store } from './appState.js';
 // discovery probe below iterates directions to maximize stop coverage and
 // find more route variants for a line.
 
+// Merges the server's { lineId: routeId[] } map (from /api/buses) into
+// lineRoutes and fetches geometry for any routeId not already cached.
+export function mergeLineRoutes(serverLineRoutes) {
+  const calls = [];
+  for (const [lineId, routeIds] of Object.entries(serverLineRoutes ?? {})) {
+    for (const routeId of routeIds) calls.push({ lineId: Number(lineId), routeId });
+  }
+  recordRouteIdsFromCalls(calls);
+}
+
 // Records every routeId seen on flattened TransitCalls (from any GetCalls
-// response, whether from selected-stop polling or discovery probing), and
-// kicks off geometry fetches for any routeId not already cached. Journey/
-// vehicle bookkeeping (journeyVehicles) is handled separately in
-// call-discovery.js, since it needs a full town-wide batch to pick the
-// right representative call per journey (see there for why).
+// response, whether from selected-stop polling or the server's line-route
+// map), and kicks off geometry fetches for any routeId not already cached.
 export function recordRouteIdsFromCalls(transitCalls) {
   const { lineRoutes, routeGeometry } = store.get();
   let routesChanged = false;

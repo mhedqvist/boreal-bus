@@ -1,120 +1,29 @@
 import { api } from './api.js';
 import { store } from './appState.js';
-import { runPooled } from './pool.js';
-import { now } from './clock.js';
+import { mergeLineRoutes } from './routes.js';
 
-const VEHICLE_FETCH_CONCURRENCY = 15;
+// Buses whose next stop is further away than this are left out: they are
+// parked or between trips and not worth showing yet.
+export const MAX_NEXT_STOP_MS = 10 * 60 * 1000;
 
-// The API has no "in service" / active flag anywhere in VehiclePosition or
-// TransitCall (see openapi.yaml) - the only freshness signal available is
-// how old VehiclePosition.timestamp is. A call whose vehicle GPS hasn't
-// reported in a while (trip finished, vehicle offline, journey is
-// scheduled-only with no real vehicle assigned yet) still gets echoed back
-// by GetVehiclePosition with its last known fix, which is why some markers
-// otherwise look "live" but never move. Anything older than this is flagged
-// stale (shown, not hidden - see docs/initial_plan.md error-handling philosophy)
-// rather than silently dropped, since an occasional slow GPS update is
-// normal and shouldn't make a real in-service bus disappear.
-export const STALE_THRESHOLD_MS = 3 * 60 * 1000;
-
-// VehiclePosition.id merely echoes back the requested callId (verified live
-// - it is not a stable per-vehicle identifier), so the same physical bus
-// commonly shows up under several call ids (one per upcoming stop on its
-// journey). Positions are deduped onto one physical vehicle by rounding
-// (lat, lon, timestamp) into a key: two call ids reporting the same
-// location at the same instant are treated as the same bus.
-function positionKey(position) {
-  return `${position.location.lat.toFixed(5)}|${position.location.lon.toFixed(5)}|${position.timestamp}`;
+export function isNextStopSoon(bus, nowMs) {
+  const forecastMs = Date.parse(bus.nextStop?.forecastTime ?? '');
+  if (Number.isNaN(forecastMs)) return true;
+  return forecastMs - nowMs <= MAX_NEXT_STOP_MS;
 }
 
-// Fetches GetVehiclePosition only for each journey's representative call
-// id(s) (journeyVehicles, built by call-discovery.js's town-wide scan -
-// the call whose stop has the earliest future forecast per journey), then
-// dedupes onto distinct physical vehicles so every live bus can be
-// plotted on its route simultaneously. This is a small, bus-sized request
-// set (roughly one or two calls per running journey) rather than every
-// call id town-wide, which would be ~15x larger since a journey's call id
-// changes at every remaining stop along its route (see docs/initial_plan.md).
-export async function fetchAllLiveVehicles({ signal } = {}) {
-  const { journeyVehicles } = store.get();
-  const entries = [];
-  for (const [journeyId, info] of journeyVehicles.entries()) {
-    for (const callId of info.callIds) entries.push({ callId, journeyId, info });
-  }
-  if (!entries.length) {
-    store.set({ liveVehicles: [] });
-    return [];
-  }
-
-  const results = await runPooled(entries, VEHICLE_FETCH_CONCURRENCY, (entry) =>
-    api.getVehiclePosition(entry.callId, { signal })
-  );
-
-  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
-
-  const currentTime = now();
-  const byKey = new Map();
-  results.forEach((res, i) => {
-    if (res.status !== 'fulfilled' || !res.value?.location) return;
-    const { callId, journeyId, info } = entries[i];
-    const key = positionKey(res.value);
-    const ageMs = currentTime - new Date(res.value.timestamp).getTime();
-    const stale = !Number.isNaN(ageMs) && ageMs > STALE_THRESHOLD_MS;
-
-    // Prefer the arrival forecast for "next stop" info (when the bus is
-    // expected to reach that upcoming stop); fall back to departure for
-    // a call representing the very start of a journey, which may only
-    // have a departure forecast.
-    const forecast = info.arrival ?? info.departure ?? null;
-    const forecastMs = new Date(forecast?.forecastTime ?? '').getTime();
-    // GetVehiclePosition can return the exact same GPS fix for multiple
-    // journeys assigned to the same physical bus, including future trips.
-    // During position deduplication, choose the journey whose next forecast
-    // is closest in the future. The old "first result wins" behavior made
-    // metadata depend on nondeterministic stop-scan completion order and
-    // could label two buses with an unrelated future journey's next stop.
-    const forecastRank = Number.isNaN(forecastMs)
-      ? Number.POSITIVE_INFINITY
-      : forecastMs >= currentTime
-        ? forecastMs - currentTime
-        : Number.MAX_SAFE_INTEGER + (currentTime - forecastMs);
-    const candidate = {
-      key,
-      position: res.value,
-      lineId: info.lineId,
-      line: info.line,
-      destination: info.destination,
-      journeyId,
-      routeId: info.routeId,
-      callIds: [callId],
-      ageMs,
-      stale,
-      forecastRank,
-      nextStop: {
-        stopText: info.stopText,
-        plannedTime: forecast?.plannedTime ?? null,
-        forecastTime: forecast?.forecastTime ?? null,
-      },
-    };
-
-    const existing = byKey.get(key);
-    if (!existing) {
-      byKey.set(key, candidate);
-      return;
-    }
-
-    const allCallIds = [...new Set([...existing.callIds, callId])];
-    if (candidate.forecastRank < existing.forecastRank) {
-      candidate.callIds = allCallIds;
-      byKey.set(key, candidate);
-    } else {
-      existing.callIds = allCallIds;
-    }
+// All journey tracking (town-wide stop scan, position fetches, next-stop
+// forecasts, stale flagging) lives on the server; see server/lib/tracker.js.
+// One request per tick returns every running bus ready to display.
+export async function refreshLiveVehicles({ signal } = {}) {
+  const data = await api.getBuses({ signal });
+  const serverNowMs = Date.parse(data.serverTime ?? '');
+  const nowMs = Number.isNaN(serverNowMs) ? Date.now() : serverNowMs;
+  const vehicles = (data.vehicles ?? []).filter((bus) => isNextStopSoon(bus, nowMs));
+  store.set({
+    liveVehicles: vehicles,
+    errors: { ...store.get().errors, vehicles: data.error ?? null },
   });
-
-  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
-
-  const liveVehicles = [...byKey.values()].map(({ forecastRank, ...vehicle }) => vehicle);
-  store.set({ liveVehicles });
-  return liveVehicles;
+  mergeLineRoutes(data.lineRoutes);
+  return vehicles;
 }

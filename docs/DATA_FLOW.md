@@ -1,10 +1,37 @@
 # Data Flow — Current Implementation
 
-Describes how data actually moves through the app in `/src`, end to end:
-what runs at startup, what polls continuously, and how a user action (line
-filter toggle, stop search) changes what's rendered. See `API.md` for the
-underlying endpoint contracts, and `initial_plan.md` for the design
-rationale/history behind each decision below.
+Describes how data actually moves through the app, end to end: the server in
+`/server` (which talks to Boreal), and the browser code in `/src` (which only
+talks to the server). See `API.md` for the underlying endpoint contracts, and
+`initial_plan.md` for the design rationale/history (written when scanning ran
+in the browser; that logic now lives in `server/lib/tracker.js`).
+
+## 0. The server (`/server`)
+
+```
+Browser ──► /api/buses, /api/stops, /api/<BorealEndpoint> ──► server ──► Boreal
+```
+
+- `/api/buses` — every running bus (position, line, destination, next two
+  stops with planned/forecast times, age/stale flag) plus `lineRoutes`
+  (`{ lineId: routeId[] }`). Built by `tracker.js`:
+  - **Stop scan** every ~3 min (or earlier after a failed position fetch,
+    at most every 30 s): `GetCalls` for every stop, grouped by `journeyId`
+    into ordered stop lists. A journey's `positionCallIds` are the call ids
+    of its last stop.
+  - **Positions** at most every 15 s: `GetVehiclePosition` per journey,
+    deduped by `(lat, lon, timestamp)` onto the journey with the soonest
+    future forecast. `nextStop`/`followingStop`/`ageMs` are computed per
+    request using the Boreal-corrected clock.
+  - Refresh is lazy (only when a request finds data expired), concurrent
+    requests share one refresh, and failures keep serving the last data with
+    `error` set.
+- `/api/stops` — `[{ id, text, location }]`, coordinates resolved once.
+- `/api/<BorealEndpoint>` — allow-listed passthrough with short TTL caches
+  (`passthrough.js`) that injects the Kiruna profile headers, so the
+  browser code can call the unchanged endpoints (`GetLines`, `GetCalls`,
+  `GetMapRoute`, `FindStopArea`, ...).
+- Everything else is static files from `src/`.
 
 ## 1. Startup sequence (`main.js`)
 
@@ -27,7 +54,7 @@ main()
  │     initial render of (empty) filters/table/arrivals/status
  │
  └─ 5. initPoller()                     [poller.js]
-       immediately starts four polling schedules (see §3)
+       starts the live-bus polling schedule (see §3)
 ```
 
 All of `map.js`/`ui.js` render purely as a **function of the shared
@@ -49,99 +76,42 @@ Key fields and who writes them:
 |---|---|---|
 | `lines`, `activeLineIds` | `lines.js`, `filters.js` | `map.js`, `ui.js` |
 | `selectedStop`, `calls`, `isStopCancelled`, `messages` | `stops.js`, `calls.js` | `ui.js` |
-| `vehicles` | `poller.js`'s `pollVehicles` (town-wide `GetVehiclePositions`) | unused by rendering now — fallback only |
-| `liveVehicles` | `live-vehicles.js` | `map.js`, `ui.js` (primary live-bus source) |
-| `lineRoutes`, `routeGeometry` | `routes.js` (`recordRouteIdsFromCalls`, `fetchGeometries`) | `map.js` (route polylines) |
-| `journeyVehicles` | `call-discovery.js` (`buildJourneyVehicles`) | `live-vehicles.js` (which call ids to fetch positions for, plus line/destination/next-stop labels) |
-| `stopLocations` | `call-discovery.js` (`resolveStopLocations`, via `FindStopArea`) | `map.js` (stop circles) |
+| `liveVehicles` | `live-vehicles.js` (from `/api/buses`) | `map.js`, `ui.js` |
+| `lineRoutes`, `routeGeometry` | `routes.js` (`mergeLineRoutes`, `recordRouteIdsFromCalls`, `fetchGeometries`) | `map.js` (route polylines) |
+| `stopLocations` | `stop-locations.js` (from `/api/stops`) | `map.js` (stop circles) |
 | `selectedVehicleJourneyId` | `vehicleSelection.js` (row click) | `map.js` (marker highlight/pan), `ui.js` (row highlight) |
-| `clockOffsetMs` | `clock.js` | `call-discovery.js` (future-stop selection), `live-vehicles.js` (staleness), `ui.js` (countdowns) |
+| `clockOffsetMs` | `clock.js` | `ui.js` (countdowns) |
 | `errors.*` | every fetch module, on failure | `ui.js` (`renderStatus`) |
 
 ## 3. Continuous polling loops (`poller.js`)
 
-Four schedules run from `poller.js`. The vehicle and selected-stop request
-families use `AbortController`; a shared `generation` counter is bumped on
-stop select/deselect and pause/resume so responses tied to stale UI state
-are discarded. `pollLiveVehicles` deliberately sequences call discovery
-before position fetching rather than running them independently:
+Two schedules run from `poller.js`, both using `AbortController`; a shared
+`generation` counter is bumped on stop select/deselect and pause/resume so
+responses tied to stale UI state are discarded.
 
-1. **`pollVehicles`** (15s) — `GetVehiclePositions` (town-wide, plural).
-   Kept only as a fallback; in practice this consistently returns `[]`
-   live (see `API.md`), so it doesn't drive any visible rendering today.
-
-2. **`pollLiveVehicles`** (15s) — the real live-position feed. Runs the
-   town-wide call scan and the position fetch back-to-back in one tick, so
-   a bus's plotted position and its scheduled/forecast "next stop" data
-   always come from the same scan:
+1. **`pollLiveVehicles`** (60s) — one request per tick:
    ```
-   refreshCallDiscovery()                    [call-discovery.js]  (see 4)
-     → store.set({ journeyVehicles })
-   then
-   fetchAllLiveVehicles()                    [live-vehicles.js]
-     reads store.journeyVehicles (one entry per running journey)
-     → runPooled(representative callIds, concurrency=15, GetVehiclePosition)
-     → dedupe results into physical vehicles by (lat, lon, timestamp) key,
-       keeping the journey whose next forecast is soonest in the future
-       (one bus's later trips of the day report the same GPS fix)
-     → tag each with ageMs/stale using clock.js's server-corrected now()
-     → attach line, journeyId, routeId, and nextStop {stopText, plannedTime,
-       forecastTime} from the representative call
-     → store.set({ liveVehicles })
+   refreshLiveVehicles()                     [live-vehicles.js]
+     GET /api/buses
+     → store.set({ liveVehicles, errors.vehicles = data.error })
+     → mergeLineRoutes(data.lineRoutes)      [routes.js]
+          add to lineRoutes; GetMapRoute for each new routeId
+          → store.routeGeometry
+   refreshStopLocations()                    [stop-locations.js]
+     GET /api/stops (only until loaded)  → store.stopLocations
    ```
    Self-guards against overlapping ticks (`liveVehiclesRunning`) since the
-   combined scan can take a few seconds.
+   very first request can take several seconds while the server warms up.
+   The browser never talks to Boreal's scan endpoints; the server's caches
+   decide when Boreal is actually contacted (§0).
 
-3. **`pollCalls`** (15s, only while a stop is selected) —
-   `fetchCallsForSelectedStop` [`calls.js`] calls `GetCalls` for
-   `store.selectedStop`, flattens `CallGroup.calls`, updates
-   `store.calls`/`isStopCancelled`/`messages`, and feeds the same calls
-   into `recordRouteIdsFromCalls` (so route geometry can also be
-   discovered incidentally from stop-specific polling, not just the
-   town-wide scan).
+2. **`pollCalls`** (60s, only while a stop is selected) —
+   `fetchCallsForSelectedStop` [`calls.js`] calls `GetCalls` (via the
+   server's cached passthrough) for `store.selectedStop`, flattens
+   `CallGroup.calls`, updates `store.calls`/`isStopCancelled`/`messages`,
+   and feeds the same calls into `recordRouteIdsFromCalls`.
 
-4. **`refreshStopsList`** (every 5 minutes) — the expensive half of
-   discovery, split out so it doesn't gate the 15s data refresh. The set of
-   stops served by each line essentially never changes mid-session:
-   ```
-   refreshStopsList()                        [call-discovery.js]
-     GetStopAreas(lineId, null) for every line, pooled  → dedupe by stop.id
-     → cachedStops (module-level, not in the store)
-     → FindStopArea per not-yet-resolved stop, pooled
-          (GetStopAreas omits `location`; FindStopArea returns it)
-       → store.stopLocations  (stopAreaId -> {text, location})
-   ```
-
-   **`refreshCallDiscovery`** (every 15s, driven by `pollLiveVehicles`
-   above) — reuses `cachedStops` and re-scans calls town-wide:
-   ```
-   refreshCallDiscovery()                    [call-discovery.js]
-     GetCalls(stop.text, lineId=0) for every cached stop, pooled
-     → flatten CallGroup.calls, tagging each with its stop's text
-     → recordRouteIdsFromCalls(flat)          [routes.js]
-          lineRoutes.get(call.lineId).add(call.routeId)
-          if routeGeometry missing for routeId → queue GetMapRoute fetch
-     → fetchGeometries(routeIds)              [routes.js]
-          GetMapRoute per new routeId → store.routeGeometry
-     → buildJourneyVehicles(callsWithStop)
-          group by journeyId, keep the call for the stop with the earliest
-          forecastTime still in the future (arrival ?? departure, compared
-          against clock.js's server-adjusted now(); sequenceNumber is only
-          a tie-breaker, and the lowest one a fallback when nothing is
-          future-dated), plus any sibling call id at that same stop for a
-          reinforcement bus, capturing line/destination/stopText/
-          arrival/departure
-     → store.set({ journeyVehicles })         (rebuilt from scratch, so
-                                               finished journeys drop out)
-   ```
-   Guarded against overlapping runs via an `inFlight` promise.
-
-   A journey's `TransitCall.id` changes at *every* remaining stop on its
-   route, so grouping by `journeyId` and keeping only the next-stop call is
-   what keeps this to roughly one request per real bus (~20) instead of one
-   per call id (~176) — see `API.md` quirk #8.
-
-All four loops pause on `document.visibilitychange` (tab hidden) and, on
+Both loops pause on `document.visibilitychange` (tab hidden) and, on
 resume, bump `generation` (discarding stale in-flight responses) before
 restarting.
 
@@ -190,13 +160,13 @@ independent pieces:
   **only** flips `activeLineIds` (no network call) — except turning a
   line *on* also calls `ensureLineRouteDiscovered(lineId)` as a
   just-in-case fallback probe if that line's route geometry is still
-  completely unknown (normally already populated by the town-wide
-  discovery scan).
+  completely unknown (normally already populated via `/api/buses`).
 - **Live buses table**: same `state.liveVehicles` data as the map
   markers, filtered by `activeLineIds` and to buses whose last position
   fix is under 15 minutes old, one row per physical bus (line badge with
   the short line name, destination, next stop with its planned and
-  expected times, last-updated time, and Live/Stale status). Each row carries a `data-journey-id`; a single delegated click
+  expected times, the following stop and its expected time ("Then"),
+  last-updated time, and Live/Stale status). Each row carries a `data-journey-id`; a single delegated click
   listener (bound once, since the table's `innerHTML` is rebuilt every
   tick) calls `selectVehicle(journeyId)` [`vehicleSelection.js`], which
   toggles `state.selectedVehicleJourneyId` — pure client-side state, no
@@ -228,18 +198,17 @@ Deselecting a stop (`clearSelectedStop`) does the reverse: bumps
 
 ```
 Boreal AnyRide API
-        │ HTTP
+        │ HTTP (server-side only; cached, rate-limited by TTLs)
         ▼
-api.js (headers, timeout, cancellation, typed errors)
+server (tracker.js, passthrough.js)  ── also serves src/
+        │ /api/buses, /api/stops, /api/<endpoint>
+        ▼
+api.js (timeout, cancellation, typed errors)
         │
         ▼
 poller.js + fetch/derive modules
-  ├─ pollVehicles (15s, bulk endpoint fallback)
-  ├─ pollLiveVehicles (15s)
-  │    ├─ refreshCallDiscovery
-  │    └─ fetchAllLiveVehicles
-  ├─ pollCalls (15s while a stop is selected)
-  └─ refreshStopsList (5 min)
+  ├─ pollLiveVehicles (60s) → /api/buses (+ /api/stops until loaded)
+  └─ pollCalls (60s while a stop is selected)
         │ store.set(...)
         ▼
 appState.js shared store

@@ -1,0 +1,14 @@
+{
+  "name": "boreal-bus-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API + static host for the Kiruna Live Bus Tracker (wraps the Boreal AnyRide API)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  }
+}

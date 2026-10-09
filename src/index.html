@@ -6,10 +6,15 @@
   <title>Kiruna Live Bus Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/app.css" />
+  <link rel="icon" href="data:," />
+  <script src="runtime-config.js"></script>
 </head>
 <body>
   <header class="app-header">
-    <h1>Kiruna Live Bus Tracker</h1>
+    <div class="app-title-row">
+      <h1>Kiruna Live Bus Tracker</h1>
+      <span id="refresh-countdown" class="refresh-countdown" role="timer" aria-live="off"></span>
+    </div>
     <p id="app-error" class="banner banner-error" role="alert" hidden></p>
     <p id="status-banner" class="banner banner-status" role="status" aria-live="polite" hidden></p>
   </header>

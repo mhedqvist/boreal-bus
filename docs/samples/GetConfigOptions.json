@@ -1,0 +1,185 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/GetConfigOptions",
+    "query": {
+      "profile": "",
+      "language": "sv"
+    },
+    "headers": {}
+  },
+  "status": 200,
+  "response": {
+    "occupancy": {
+      "levels": [
+        {
+          "from": 0,
+          "to": 0,
+          "image": "iconOccupancyLow",
+          "label": "textOccupancyLowLabel",
+          "description": "textOccupancyLowDescription"
+        },
+        {
+          "from": 1,
+          "to": 53,
+          "image": "iconOccupancyMedium",
+          "label": "textOccupancyMediumLabel",
+          "description": "textOccupancyMediumDescription"
+        },
+        {
+          "from": 53,
+          "to": 63,
+          "image": "iconOccupancyHigh",
+          "label": "textOccupancyHighLabel",
+          "description": "textOccupancyHighDescription"
+        },
+        {
+          "from": 63,
+          "to": 200,
+          "image": "iconOccupancyFull",
+          "label": "textOccupancyStandingLabel",
+          "description": "textOccupancyStandingDescription"
+        }
+      ]
+    },
+    "iconOccupancyFull": "assets/img/occupancy_full.svg",
+    "iconOccupancyHigh": "assets/img/occupancy_high.svg",
+    "iconOccupancyMedium": "assets/img/occupancy_medium.svg",
+    "iconOccupancyLow": "assets/img/occupancy_low.svg",
+    "customCss": "assets/themes/boreal/css/theme.css",
+    "favicon": "assets/themes/boreal/img/favicon.ico",
+    "centerLat": 60.890718,
+    "centerLon": 8.433691,
+    "mapMaxCount": null,
+    "mapMaxDistance": null,
+    "zoom": 10,
+    "minZoom": 10,
+    "top_pushpin": "",
+    "logo_top": "",
+    "hrefCustomer": "",
+    "logo": "assets/themes/boreal/img/boreal_logo.svg",
+    "iconWheelchair": "assets/img/icon_wheelchair.png",
+    "iconRealtime": "assets/img/icon_realtime.png",
+    "useDirection": false,
+    "locale": null,
+    "showVehicleLocations": false,
+    "hideRouteStopSelection": true,
+    "displayRowMapExpanded": false,
+    "formatClock": "HH:mm:ss",
+    "formatAbsoluteTime": "HH:mm",
+    "formatRelativeTime": "mmm",
+    "formatForecastTime": [
+      {
+        "type": "ForecastNow",
+        "time": "00:00:30"
+      },
+      {
+        "type": "RelativeTime",
+        "time": "00:30:00"
+      },
+      {
+        "type": "AbsoluteTime"
+      }
+    ],
+    "googleAnalytics": [],
+    "useNonForcastIndicator": true,
+    "am_pm": false,
+    "showAllStopsCancelledText": true,
+    "rowGrouping": [
+      "Line",
+      "Destination1"
+    ],
+    "rowOrder": [
+      "Line",
+      "Destination",
+      "Time"
+    ],
+    "rowData": [],
+    "rowLabel": "Line",
+    "tableShowOccupancy": true,
+    "showStopAreaNumber": true,
+    "tableShowExpander": true,
+    "tableDetailsShowNext": true,
+    "tableDetailsShowAfter": true,
+    "tableDetailsShowMap": true,
+    "tableDetailsShowOccupancyLegend": true,
+    "frames": {
+      "destination": [
+        {
+          "seconds": 5,
+          "template": "default"
+        },
+        {
+          "seconds": 3,
+          "template": "reinforcement"
+        }
+      ]
+    },
+    "messagePriorityStrategy": "priority",
+    "allowedLanguages": [],
+    "defaultLanguage": "sv",
+    "title": "Boreal - AnyRide - Realtime Information",
+    "textCopyright": "© Copyright Consat Telematics AB. All rights reserved.",
+    "htmlPoweredBy": null,
+    "tiles": {
+      "renderer": "",
+      "urlTemplate": "https://boreal.tmix.se/Tmix.Cap.Mapping.WebApp.Tiles/external/{z}/{x}/{y}.png",
+      "options": [
+        {
+          "attribution": "Map data &copy; <a href=\"http://openstreetmap.org\">OpenStreetMap</a> contributors, <a href=\"http://creativecommons.org/licenses/by-sa/2.0/\">CC-BY-SA</a>, Imagery © <a href=\"http://mapbox.com\">Mapbox</a>"
+        }
+      ]
+    },
+    "useNewTable": true,
+    "newTableMessagesAtTop": true,
+    "textLanguage": "sv",
+    "textAllStopsCancelledString": "Hållplats indragen",
+    "textSelectYourStop": "Välj din hållplats",
+    "textDoYouKnowStop": "Sök på hållplatsnamn",
+    "textUseGPS": "(Använd GPS-knappen för att hitta närmsta hållplats)",
+    "textStopNameOrNumber": "Hållplats eller nummer",
+    "textChooseLineStop": "Välj linje och hållplats.",
+    "textChooseLineDirectionStop": "Välj linje, riktning och hållplats.",
+    "textDirection": "Riktning",
+    "textDestination": "Destination",
+    "textLine": "Linje",
+    "textJourney": "Tur",
+    "textStop": "Hållplats",
+    "textSelectLine": "Välj linje",
+    "textLoadingLine": "Läser in linjer",
+    "textSelectDirection": "Välj riktning",
+    "textLoadingDirection": "Läser in riktningar",
+    "textSelectStop": "Välj hållplats",
+    "textLoadingStop": "Läser in hållplatser",
+    "textNext": "Nästa Tur",
+    "textStopAreaNumber": "Läge",
+    "textNextDepartureIn": "Nästa avgång om",
+    "textAfter": "Därefter",
+    "textMin": "min",
+    "textOr": "OR",
+    "textAriaOr": "Or",
+    "textViewLiveMap": "Visa på karta",
+    "textPleaseDefineYourSearch": "Definiera din sökning...",
+    "textNoDataFound": "Inget resultat.",
+    "textCancelled": "Inställd",
+    "textNoFollowingDeparture": "--",
+    "textForecastQualityTimetable": "ca",
+    "textNow": "nu",
+    "textFailedGpsLocation": "Kunde inte fastställa din positition",
+    "textAriaLabelGps": "Visa närliggande hållplatser",
+    "textAriaLabelSearch": "Sök",
+    "textLiveBusTimes": "",
+    "textReinforcement": "EXTRA",
+    "textOccupancy": "Plats",
+    "textOccupancyStandingLabel": "Endast stående",
+    "textOccupancyStandingDescription": "Inga sittplatser troligen tillgängliga, begränsat ståutrymme kan vara tillgängligt.",
+    "textOccupancyHighLabel": "Begränsade sittplatser tillgängliga",
+    "textOccupancyHighDescription": "Några sittplatser kan vara tillgängliga, ståutrymme finns.",
+    "textOccupancyMediumLabel": "Sittplatser tillgängliga",
+    "textOccupancyMediumDescription": "Många sittplatser troligen tillgängliga.",
+    "textOccupancyLowLabel": "Sittplatser tillgängliga",
+    "textOccupancyLowDescription": "Troligtvis inga eller ett fåtal personer ombord.",
+    "profileData": "boreal_kiruna",
+    "profileDisplay": "boreal"
+  }
+}

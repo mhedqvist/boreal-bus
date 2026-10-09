@@ -32,7 +32,7 @@ export function initUi() {
 // clearSelectedStop call) rather than on selectedStop.id: re-selecting the
 // stop that is already selected must still restate it in the box, since
 // the user may have typed over the value in the meantime. Unrelated
-// re-renders (15s poll ticks, filter toggles) leave the seq untouched, so
+// re-renders (60s poll ticks, filter toggles) leave the seq untouched, so
 // in-progress typing is never clobbered.
 let lastSyncedSelectionSeq = 0;
 
@@ -81,8 +81,8 @@ function renderVehiclesTable(state) {
   const container = document.getElementById('live-buses');
   if (!container) return;
 
-  // Primary source: liveVehicles (from live-vehicles.js's per-callId scan
-  // across every known call town-wide), one row per distinct physical bus.
+  // Source: liveVehicles (from the server's /api/buses), one row per
+  // distinct physical bus.
   const visibleVehicles = state.liveVehicles.filter(
     (bus) =>
       (bus.lineId === undefined || state.activeLineIds.has(bus.lineId)) &&
@@ -102,7 +102,7 @@ function renderVehiclesTable(state) {
   const parts = [
     `<h2>Live buses (${visibleVehicles.length})</h2>`,
     subtitle,
-    '<div class="table-scroll" tabindex="0" aria-label="Live buses table"><table class="arrivals-table live-buses-table"><thead><tr><th>Line</th><th>Destination</th><th>Next stop</th><th>Planned</th><th>Expected</th><th>Updated</th><th>Status</th></tr></thead><tbody>',
+    '<div class="table-scroll" tabindex="0" aria-label="Live buses table"><table class="arrivals-table live-buses-table"><thead><tr><th>Line</th><th>Destination</th><th>Next stop</th><th>Planned</th><th>Expected</th><th>Then</th><th>Updated</th><th>Status</th></tr></thead><tbody>',
   ];
   for (const bus of visibleVehicles) {
     // Short display name (e.g. "Röd", trimming TransitCall.line's trailing
@@ -116,6 +116,9 @@ function renderVehiclesTable(state) {
     const nextStopText = stripStopId(bus.nextStop?.stopText) ?? '—';
     const planned = formatTime(bus.nextStop?.plannedTime);
     const expected = formatTime(bus.nextStop?.forecastTime);
+    const following = bus.followingStop
+      ? `${escapeHtml(stripStopId(bus.followingStop.stopText))} ${formatTime(bus.followingStop.forecastTime)}`
+      : '—';
     const rowClasses = [bus.stale ? 'row-stale' : '', bus.journeyId === state.selectedVehicleJourneyId ? 'row-selected' : '']
       .filter(Boolean)
       .join(' ');
@@ -129,6 +132,7 @@ function renderVehiclesTable(state) {
       <td>${escapeHtml(nextStopText)}</td>
       <td>${planned}</td>
       <td>${expected}</td>
+      <td>${following}</td>
       <td>${formatTime(bus.position.timestamp)}</td>
       <td>${status}</td>
     </tr>`);

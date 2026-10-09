@@ -1,0 +1,72 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/FindStopsNearLocation",
+    "body": {
+      "coordinate": {
+        "alt": 0,
+        "lat": 67.86725,
+        "lon": 20.20546
+      },
+      "maxCount": 5,
+      "maxDistance": 750
+    },
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": [
+    {
+      "id": 110084185,
+      "externalId": "84185",
+      "text": "Porfyrvägen (84185)",
+      "location": {
+        "alt": 0,
+        "lat": 67.86725,
+        "lon": 20.20546
+      }
+    },
+    {
+      "id": 110084179,
+      "externalId": "84179",
+      "text": "Grönstensvägen (84179)",
+      "location": {
+        "alt": 0,
+        "lat": 67.86862,
+        "lon": 20.21056
+      }
+    },
+    {
+      "id": 110084186,
+      "externalId": "84186",
+      "text": "Bangatan (84186)",
+      "location": {
+        "alt": 0,
+        "lat": 67.86408,
+        "lon": 20.20908
+      }
+    },
+    {
+      "id": 110084946,
+      "externalId": "84946",
+      "text": "Porfyren (84946)",
+      "location": {
+        "alt": 0,
+        "lat": 67.86586,
+        "lon": 20.21656
+      }
+    },
+    {
+      "id": 110084187,
+      "externalId": "84187",
+      "text": "Skrädaregatan (84187)",
+      "location": {
+        "alt": 0,
+        "lat": 67.86239,
+        "lon": 20.21577
+      }
+    }
+  ]
+}

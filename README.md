@@ -1,8 +1,11 @@
 # Kiruna Live Bus Tracker
 
 A browser-based live transit map for Kiruna, Sweden, built with plain
-HTML/CSS/JavaScript and Leaflet. It calls the Boreal AnyRide API directly;
-there is no backend, package manager, build step, or local database.
+HTML/CSS/JavaScript and Leaflet, plus a small dependency-free Node server.
+The Boreal AnyRide API sends no CORS headers, so browsers cannot call it
+directly. The server fetches and caches the data once and serves both the
+JSON API the page uses and the page itself. There is no build step or
+database.
 
 ## Features
 
@@ -17,7 +20,7 @@ there is no backend, package manager, build step, or local database.
 - All bus stops shown as clickable circles; selecting one displays its live
   arrivals. Stops can also be selected through autocomplete or a map click.
 - Client-side line filters apply to routes, vehicle markers, and table rows.
-- Automatic refresh every 15 seconds; polling pauses in a hidden browser tab
+- Automatic refresh every 60 seconds; polling pauses in a hidden browser tab
   and resumes immediately when the tab becomes visible.
 - Positions older than three minutes are marked stale. Positions older than
   15 minutes remain visible on the map but are omitted from the table.
@@ -29,33 +32,48 @@ there is no backend, package manager, build step, or local database.
 
 ## Run locally
 
-From the repository root:
+Requires Node 20 or newer. From the repository root:
 
 ```powershell
-cd src
-python -m http.server 8765
+cd server
+node index.js
 ```
 
-Then open <http://localhost:8765/index.html>. Stop the server with `Ctrl+C`.
-An internet connection is required for Leaflet/OpenStreetMap assets and the
-Boreal API.
+Then open <http://localhost:8080/>. The server serves the frontend from
+`src/` and the API under `/api`. An internet connection is required for
+Leaflet/OpenStreetMap assets and the Boreal API. See
+[server/README.md](server/README.md) for configuration, endpoints, tests and
+deployment (including Docker).
 
 ## How live tracking works
 
-At startup the app loads configuration, lines, server-clock offset, route and
-stop data immediately. Every 15 seconds it:
+The server (`server/lib/tracker.js`) does all the scanning. It contacts
+Boreal only when a request arrives and its cached data has expired, so
+upstream traffic does not grow with the number of visitors:
 
-1. Fetches calls for all known stops.
-2. Groups calls by `journeyId` and selects each journey's earliest future
-   arrival/departure forecast as its next stop.
-3. Calls `GetVehiclePosition` for that representative call.
-4. Deduplicates identical `(latitude, longitude, timestamp)` fixes into
+1. Every ~3 minutes it fetches calls for all known stops and groups them by
+   `journeyId`, storing each journey's ordered stop list with
+   planned/forecast times. A failed position fetch triggers an earlier rescan.
+2. At most every 15 seconds it calls `GetVehiclePosition` for each journey's
+   stored call id (any call id of a journey returns the same bus position).
+3. It deduplicates identical `(latitude, longitude, timestamp)` fixes into
    physical buses. Because the API also maps later journeys to the same bus,
    the journey with the nearest future forecast supplies the displayed
-   destination and next-stop metadata.
+   destination and the next two stops ("Next stop" and "Then") with their
+   expected times.
 
-Stop coordinates are resolved once through `FindStopArea`, because
-`GetStopAreas` returns Kiruna stops without locations.
+The page polls `/api/buses` every 60 seconds and gets every bus ready to
+display in one request. Stop coordinates are resolved once by the server
+(`/api/stops`), because `GetStopAreas` returns Kiruna stops without
+locations. If Boreal becomes unreachable the server keeps serving the last
+known data, with the error reported in the response.
+
+## Hosting the page separately
+
+If the page is hosted elsewhere (for example GitHub Pages), set `apiBase` in
+`src/runtime-config.js` to the server's API URL
+(`https://your-server.example.com/api`) and set `ALLOWED_ORIGINS` on the
+server to the page's origin.
 
 ## Project structure
 
@@ -64,6 +82,7 @@ src/                  Static web application
   index.html
   css/app.css
   js/*.js             ES modules; no bundler
+server/               Node server: cached Boreal API client, /api, static hosting
 docs/API.md           Endpoint and schema reference plus observed quirks
 docs/DATA_FLOW.md     Current runtime architecture and data flow
 docs/initial_plan.md  Historical design plan and implementation revisions
@@ -92,8 +111,9 @@ publish Swagger or other official API documentation. No authentication was
 required when the API was inspected on 2026-09-07, but endpoints, headers, and
 response formats may change without notice.
 
-The browser API currently allows cross-origin requests, including the two
-AnyRide profile headers described below.
+The upstream API does not send CORS headers, so browsers cannot read its
+responses from another origin. This project's server fetches it server-side
+(see [server/README.md](server/README.md)).
 
 ## Kiruna profile
 

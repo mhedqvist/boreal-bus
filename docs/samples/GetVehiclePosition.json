@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/GetVehiclePosition",
+    "query": {
+      "callId": "1406113461"
+    },
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": {
+    "id": "1406113461",
+    "displayName": null,
+    "classes": [],
+    "timestamp": "2026-10-09T06:10:40Z",
+    "heading": 267.20947265625,
+    "location": {
+      "alt": null,
+      "lat": 67.83812153153121,
+      "lon": 20.277207791805267
+    },
+    "speed": null
+  }
+}

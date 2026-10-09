@@ -1,0 +1,12 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/GetVehiclePositions",
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": []
+}

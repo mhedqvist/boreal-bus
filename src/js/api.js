@@ -1,6 +1,11 @@
-// Thin wrapper over the Boreal AnyRide API (see /README.md and /openapi.yaml).
-const BASE_URL = 'https://boreal.tmix.se/Tmix.Cap.Ti.Process.AnyRide/api';
+// Client for this project's own server (see /server/README.md). It exposes the
+// Boreal AnyRide endpoints (see /openapi.yaml) as a cached pass-through plus
+// /buses and /stops. Boreal itself sends no CORS headers, so browsers can't
+// call it directly. Empty apiBase = same origin ('/api').
+const BASE_URL = (globalThis.BOREAL_CONFIG?.apiBase || '/api').replace(/\/+$/, '');
 const DEFAULT_TIMEOUT_MS = 10000;
+// A cold server has to scan every stop before it can answer /buses.
+const BUSES_TIMEOUT_MS = 30000;
 
 export class ApiError extends Error {
   constructor(message, { endpoint, status, cause } = {}) {
@@ -20,7 +25,7 @@ export function setProfileHeaders(headers) {
 }
 
 function buildUrl(path, query) {
-  const url = new URL(BASE_URL + path);
+  const url = new URL(BASE_URL + path, globalThis.location.href);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null) url.searchParams.set(key, value);
@@ -77,6 +82,14 @@ async function request(
 }
 
 export const api = {
+  // Server-computed: every running bus with position, next two stops and
+  // forecast times, plus lineRoutes ({ lineId: routeId[] }).
+  getBuses: (opts = {}) =>
+    request('/buses', { requireProfile: false, timeoutMs: BUSES_TIMEOUT_MS, ...opts }),
+
+  // Server-computed: [{ id, text, location }] for every stop.
+  getStops: (opts = {}) => request('/stops', { requireProfile: false, ...opts }),
+
   getConfigOptions: (profile = '', language = 'sv', opts = {}) =>
     request('/GetConfigOptions', { query: { profile, language }, requireProfile: false, ...opts }),
 

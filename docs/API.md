@@ -11,8 +11,10 @@ behavior**, not an official stability guarantee from the API provider.
 - Base URL: `https://boreal.tmix.se/Tmix.Cap.Ti.Process.AnyRide/api`
 - Format: JSON over HTTPS, `GET` and `POST` (request bodies are JSON for
   `POST` endpoints)
-- No authentication; CORS is currently permissive enough for a browser to
-  call the API directly (no server-side proxy needed for this app)
+- No authentication. The API sends **no CORS headers** (verified for GET and
+  preflight, any origin), so browsers cannot read its responses directly.
+  This project's [`/server`](../server/README.md) calls it server-side and
+  re-exposes the same endpoints under `/api`.
 
 ## Required headers
 
@@ -236,8 +238,8 @@ the marker silently.
   flag. A call whose vehicle hasn't reported recently (trip finished,
   vehicle offline, or a scheduled-only journey with no vehicle assigned
   yet) still returns its last known fix. "In service" must be inferred
-  from how old `timestamp` is (the app treats >3 minutes as stale — see
-  `live-vehicles.js`).
+  from how old `timestamp` is (the server treats >3 minutes as stale — see
+  `server/lib/tracker.js`).
 - At Kiruna's current scale there are ~45 unique stops and ~200+ unique
   active call ids town-wide at any time — fetching all of them requires
   bounded concurrency (pooling), not one request at a time or an unbounded
@@ -258,11 +260,11 @@ a town-wide bulk endpoint.
 in live testing even while buses were actively running and individual
 `GetVehiclePosition(callId)` calls for the same buses returned real data.
 Because of this, the app does not rely on this endpoint for live vehicle
-data — it is kept only as an unused/fallback field (`state.vehicles`). The
+data — it is kept only as an unused passthrough endpoint. The
 primary feed groups calls by `journeyId`, selects one representative call
 (the stop with the earliest future forecast), and calls
 `GetVehiclePosition` for that small per-journey set. Identical position
-fixes are then deduplicated to physical buses; see `live-vehicles.js` and
+fixes are then deduplicated to physical buses; see `server/lib/tracker.js` and
 rounds 4 and 7 in `initial_plan.md`.
 
 ---
@@ -427,7 +429,7 @@ may appear).
 ### TransitCall
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `id` | string | yes | call id — pass to `GetVehiclePosition`. ⚠ Observed to be per-(journey, remaining stop): the same journey gets a **new, distinct `id` at every upcoming stop along its route** (one journey observed with 37 distinct call ids). To track one physical bus without redundant polling, group calls by `journeyId` and use only the call for the stop with the earliest future `forecastTime` (see `journeyId` row below and `call-discovery.js`). |
+| `id` | string | yes | call id — pass to `GetVehiclePosition`. ⚠ Observed to be per-(journey, remaining stop): the same journey gets a **new, distinct `id` at every upcoming stop along its route** (one journey observed with 37 distinct call ids). To track one physical bus without redundant polling, group calls by `journeyId` and use only the call for the stop with the earliest future `forecastTime` (see `journeyId` row below and `server/lib/tracker.js`). |
 | `key` | string | yes | e.g. `"1"` |
 | `lineId` | integer (int64) | yes | |
 | `routeId` | integer (int64) | yes | pass to `GetMapRoute` |

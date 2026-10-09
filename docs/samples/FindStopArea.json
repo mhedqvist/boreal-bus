@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/FindStopArea",
+    "body": {
+      "StopAreaQuery": "Porfyrvägen (84185)"
+    },
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": {
+    "id": 110084185,
+    "externalId": "84185",
+    "text": "Porfyrvägen (84185)",
+    "location": {
+      "alt": 0,
+      "lat": 67.86725,
+      "lon": 20.20546
+    }
+  }
+}

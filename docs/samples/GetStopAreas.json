@@ -1,0 +1,185 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/GetStopAreas",
+    "body": {
+      "lineId": 110000547,
+      "directionId": null
+    },
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": [
+    {
+      "id": 110084912,
+      "externalId": "84912",
+      "text": "Signalen (84912)",
+      "location": null
+    },
+    {
+      "id": 110084148,
+      "externalId": "84148",
+      "text": "Glaciären (84148)",
+      "location": null
+    },
+    {
+      "id": 110084023,
+      "externalId": "84023",
+      "text": "Jökeln (84023)",
+      "location": null
+    },
+    {
+      "id": 110084918,
+      "externalId": "84918",
+      "text": "Stamgatan (84918)",
+      "location": null
+    },
+    {
+      "id": 110084917,
+      "externalId": "84917",
+      "text": "Solvinden (84917)",
+      "location": null
+    },
+    {
+      "id": 110084092,
+      "externalId": "84092",
+      "text": "Raketen (84092)",
+      "location": null
+    },
+    {
+      "id": 110084919,
+      "externalId": "84919",
+      "text": "Kastanjen (84919)",
+      "location": null
+    },
+    {
+      "id": 110084921,
+      "externalId": "84921",
+      "text": "Lombolo Strand (84921)",
+      "location": null
+    },
+    {
+      "id": 110084169,
+      "externalId": "84169",
+      "text": "Rönnplan (84169)",
+      "location": null
+    },
+    {
+      "id": 110084924,
+      "externalId": "84924",
+      "text": "Lombolo Backe (84924)",
+      "location": null
+    },
+    {
+      "id": 110084925,
+      "externalId": "84925",
+      "text": "E10 (84925)",
+      "location": null
+    },
+    {
+      "id": 110084219,
+      "externalId": "84219",
+      "text": "Kvantum Malmvägen (84219)",
+      "location": null
+    },
+    {
+      "id": 110084926,
+      "externalId": "84926",
+      "text": "Triangeln (84926)",
+      "location": null
+    },
+    {
+      "id": 110084932,
+      "externalId": "84932",
+      "text": "Sjukhuset (84932)",
+      "location": null
+    },
+    {
+      "id": 110084933,
+      "externalId": "84933",
+      "text": "Församlingshemmet (84933)",
+      "location": null
+    },
+    {
+      "id": 110084952,
+      "externalId": "84952",
+      "text": "Sporthallen (84952)",
+      "location": null
+    },
+    {
+      "id": 110084195,
+      "externalId": "84195",
+      "text": "OK-Parken (84195)",
+      "location": null
+    },
+    {
+      "id": 110084943,
+      "externalId": "84943",
+      "text": "Norrmalm (84943)",
+      "location": null
+    },
+    {
+      "id": 110084177,
+      "externalId": "84177",
+      "text": "Övre Norrmalm (84177)",
+      "location": null
+    },
+    {
+      "id": 110084178,
+      "externalId": "84178",
+      "text": "Dubengatan (84178)",
+      "location": null
+    },
+    {
+      "id": 110084946,
+      "externalId": "84946",
+      "text": "Porfyren (84946)",
+      "location": null
+    },
+    {
+      "id": 110084179,
+      "externalId": "84179",
+      "text": "Grönstensvägen (84179)",
+      "location": null
+    },
+    {
+      "id": 110084185,
+      "externalId": "84185",
+      "text": "Porfyrvägen (84185)",
+      "location": null
+    },
+    {
+      "id": 110084186,
+      "externalId": "84186",
+      "text": "Bangatan (84186)",
+      "location": null
+    },
+    {
+      "id": 110084187,
+      "externalId": "84187",
+      "text": "Skrädaregatan (84187)",
+      "location": null
+    },
+    {
+      "id": 110084188,
+      "externalId": "84188",
+      "text": "Adolf Hedinsvägen (84188)",
+      "location": null
+    },
+    {
+      "id": 110084174,
+      "externalId": "84174",
+      "text": "Kvantum (84174)",
+      "location": null
+    },
+    {
+      "id": 110084196,
+      "externalId": "84196",
+      "text": "Coop Kiruna (84196)",
+      "location": null
+    }
+  ]
+}

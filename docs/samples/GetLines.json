@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/GetLines",
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": [
+    {
+      "id": 110000547,
+      "text": "Gul. - Gul. Lombolo - Gamla Centrum - Porfyren"
+    },
+    {
+      "id": 110000551,
+      "text": "Lila. - Lila. Lombolo - Centrum - Hagelstigen - Porfyren"
+    },
+    {
+      "id": 110000548,
+      "text": "Röd. - Röd. Tuolluvaara - Nya Centrum - LKAB"
+    }
+  ]
+}

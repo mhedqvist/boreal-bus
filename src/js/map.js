@@ -13,7 +13,7 @@ let mapResizeObserver = null;
 let resizeFrame = null;
 // Tracks the previously-applied vehicle selection so panning/opening the
 // tooltip only happens once, right when the selection changes - not on
-// every 15s re-render (which would otherwise yank the map view repeatedly
+// every 60s re-render (which would otherwise yank the map view repeatedly
 // while a bus stays selected).
 let lastSelectedJourneyId = null;
 
@@ -92,7 +92,7 @@ function render(state) {
 }
 
 // Every stop served by any line, drawn as a small circle. Coordinates come
-// from state.stopLocations (resolved via FindStopArea in call-discovery.js,
+// from state.stopLocations (resolved by the server, see stop-locations.js,
 // since GetStopAreas omits them). Clicking a circle selects that stop
 // directly - the circle would otherwise swallow the map's click handler,
 // which resolves a stop via FindStopsNearLocation.
@@ -131,15 +131,12 @@ function renderRoutes(state) {
 
 function renderVehicles(state) {
   vehicleLayer.clearLayers();
-  // Primary source: liveVehicles, built by live-vehicles.js from a
-  // per-callId GetVehiclePosition scan across every call known town-wide
-  // (call-discovery.js). Each entry already carries its line/destination,
-  // so markers can be colored/labeled directly (see docs/initial_plan.md - the
-  // town-wide GetVehiclePositions endpoint itself was observed returning
-  // no data even while buses were running).
+  // Source: liveVehicles, built by the server (/api/buses, see
+  // live-vehicles.js). Each entry already carries its line/destination,
+  // so markers can be colored/labeled directly.
   const selectedId = state.selectedVehicleJourneyId;
   // Only true on the render immediately following a selection change (not
-  // every 15s poll tick while a bus stays selected) - used to pan/open the
+  // every 60s poll tick while a bus stays selected) - used to pan/open the
   // tooltip once rather than repeatedly yanking the map/reopening it.
   const isNewSelection = selectedId != null && selectedId !== lastSelectedJourneyId;
   let selectedLatLng = null;
@@ -173,7 +170,9 @@ function renderVehicles(state) {
     const nameLabel =
       bus.lineId !== undefined ? `${shortLineLabel(bus, state)} → ${bus.destination}` : `Bus (call ${bus.callIds[0]})`;
     const nextStopLabel = bus.nextStop?.stopText ? ` | next: ${bus.nextStop.stopText}` : '';
-    const label = bus.stale ? `${nameLabel}${nextStopLabel} (stale, ${formatAge(bus.ageMs)} ago)` : `${nameLabel}${nextStopLabel}`;
+    const followingLabel = bus.followingStop?.stopText ? ` | then: ${bus.followingStop.stopText}` : '';
+    const baseLabel = `${nameLabel}${nextStopLabel}${followingLabel}`;
+    const label = bus.stale ? `${baseLabel} (stale, ${formatAge(bus.ageMs)} ago)` : baseLabel;
     marker.bindTooltip(textTooltip(label), { direction: 'top' });
     marker.addTo(vehicleLayer);
 

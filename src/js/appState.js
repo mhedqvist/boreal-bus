@@ -1,8 +1,7 @@
 import { createStore } from './state.js';
 
 // Single shared application state. See docs/initial_plan.md for the rationale
-// behind each field (esp. lineRoutes/routeGeometry and the
-// journeyVehicles/liveVehicles design).
+// behind each field (esp. lineRoutes/routeGeometry and liveVehicles).
 export const store = createStore({
   lines: [], // Line[] from GetLines
   activeLineIds: new Set(), // line filter: ids currently shown
@@ -18,19 +17,16 @@ export const store = createStore({
   isStopCancelled: false,
   messages: [], // TrafficMessage[] for the selected stop
 
-  vehicles: [], // VehiclePosition[] from the town-wide GetVehiclePositions
-  // endpoint. Observed to return [] live even when buses are running (see
-  // docs/initial_plan.md) - kept only as a secondary/fallback source; liveVehicles
-  // below is the primary display source.
   liveVehicles: [], // [{ key, position, lineId, line, destination, journeyId,
   // routeId, callIds, ageMs, stale, nextStop: { stopText, plannedTime,
-  // forecastTime } }], one entry per distinct physical bus, built by
-  // calling GetVehiclePosition for the representative call id(s) of every
-  // journey in journeyVehicles and deduping same-instant/same-location
-  // results (see live-vehicles.js - VehiclePosition.id merely echoes the
-  // requested callId, so it can't be used as a vehicle identity by itself).
-  // `line` is the short display name (TransitCall.line, e.g. "Röd."), used
-  // for compact table/tooltip display instead of the long Line.text.
+  // forecastTime }, followingStop: { stopText, plannedTime, forecastTime }
+  // | null }], one entry per distinct physical bus, as returned by the
+  // server's /api/buses (see server/lib/tracker.js, which scans the stops,
+  // fetches positions and dedupes buses sharing the same GPS fix).
+  // nextStop/followingStop are computed server-side against the current time
+  // on every request. `line` is the short display name (TransitCall.line,
+  // e.g. "Röd."), used for compact table/tooltip display instead of the
+  // long Line.text.
 
   selectedVehicleJourneyId: null, // journeyId of the bus highlighted via a
   // Live buses table row click (see vehicleSelection.js). Tracked by
@@ -41,21 +37,10 @@ export const store = createStore({
   lineRoutes: new Map(), // lineId -> Set<routeId>, discovered lazily
   routeGeometry: new Map(), // routeId -> MapRoute
   stopLocations: new Map(), // stopAreaId -> { text, location: {lat, lon} }.
-  // GetStopAreas omits `location` for every stop, so coordinates are
-  // resolved once per stop via FindStopArea (see call-discovery.js) and
-  // cached here for map.js to draw the stop circles. Stops don't move, so
-  // this is populated once and never invalidated.
-  journeyVehicles: new Map(), // journeyId -> { sequenceNumber, lineId,
-  // routeId, line, destination, journey, stopText, arrival, departure,
-  // callIds: string[] },
-  // one entry per currently running journey/bus, rebuilt from scratch on
-  // every call-discovery.js scan. callIds holds the call id(s) for the stop
-  // with that journey's earliest future forecast - usually 1, but 2 when a
-  // journey has a main + reinforcement/extra vehicle both reporting at the
-  // same stop. live-vehicles.js fetches GetVehiclePosition only for
-  // these call ids (a small, bus-sized set) instead of every call id
-  // town-wide (which would be ~15x larger - see docs/initial_plan.md). `line` is
-  // TransitCall.line (short display name, e.g. "Röd.").
+  // GetStopAreas omits `location` for every stop, so the server resolves
+  // coordinates once per stop (/api/stops, see stop-locations.js) for map.js
+  // to draw the stop circles. Stops don't move, so this is populated once and
+  // never invalidated.
 
   clockOffsetMs: 0, // serverTime - clientTime, from GetSystemTimestamp
 

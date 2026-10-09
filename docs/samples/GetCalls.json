@@ -1,0 +1,131 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/GetCalls",
+    "body": {
+      "query": {
+        "fromStopAreaQuery": "Porfyrvägen (84185)",
+        "toStopAreaName": "",
+        "lineId": 0,
+        "directionId": 0
+      },
+      "configuration": {
+        "grouping": [
+          "Line",
+          "Destination1"
+        ]
+      }
+    },
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": {
+    "isStopCancelled": false,
+    "calls": [
+      {
+        "id": "l:110000547/dest1:110000055",
+        "calls": [
+          {
+            "id": "1406113461",
+            "key": "0",
+            "lineId": 110000547,
+            "routeId": 553597,
+            "journeyId": 15451350,
+            "stopPointId": 118418501,
+            "sequenceNumber": 2,
+            "line": "Gul.",
+            "lineAppearance": {
+              "background": "#000000",
+              "foreground": "#FFFFFF",
+              "fontStyle": "regular"
+            },
+            "journey": "12",
+            "destination": "Raketen",
+            "subdestination": "",
+            "arrival": null,
+            "departure": {
+              "vehicleType": null,
+              "journeyType": "Ordinary",
+              "forecastTime": "2026-10-09T08:35:41+02:00",
+              "plannedTime": "2026-10-09T08:29:44+02:00",
+              "quality": "realtime",
+              "attributes": [],
+              "designation": "A",
+              "occupancyPercent": null
+            },
+            "createdTime": "2026-10-09T06:10:43.8592702+00:00"
+          },
+          {
+            "id": "1406113151",
+            "key": "1",
+            "lineId": 110000547,
+            "routeId": 553597,
+            "journeyId": 15451040,
+            "stopPointId": 118418501,
+            "sequenceNumber": 2,
+            "line": "Gul.",
+            "lineAppearance": {
+              "background": "#000000",
+              "foreground": "#FFFFFF",
+              "fontStyle": "regular"
+            },
+            "journey": "14",
+            "destination": "Raketen",
+            "subdestination": "",
+            "arrival": null,
+            "departure": {
+              "vehicleType": null,
+              "journeyType": "Ordinary",
+              "forecastTime": "2026-10-09T08:59:29+02:00",
+              "plannedTime": "2026-10-09T08:59:44+02:00",
+              "quality": "realtime",
+              "attributes": [],
+              "designation": "A",
+              "occupancyPercent": null
+            },
+            "createdTime": "2026-10-09T06:10:43.8592941+00:00"
+          }
+        ]
+      },
+      {
+        "id": "l:110000551/dest1:110000055",
+        "calls": [
+          {
+            "id": "1406113567",
+            "key": "2",
+            "lineId": 110000551,
+            "routeId": 553582,
+            "journeyId": 15451456,
+            "stopPointId": 118418501,
+            "sequenceNumber": 2,
+            "line": "Lila.",
+            "lineAppearance": {
+              "background": "#000000",
+              "foreground": "#FFFFFF",
+              "fontStyle": "regular"
+            },
+            "journey": "14",
+            "destination": "Raketen",
+            "subdestination": "",
+            "arrival": null,
+            "departure": {
+              "vehicleType": null,
+              "journeyType": "Ordinary",
+              "forecastTime": "2026-10-09T08:59:24+02:00",
+              "plannedTime": "2026-10-09T08:54:44+02:00",
+              "quality": "realtime",
+              "attributes": [],
+              "designation": "A",
+              "occupancyPercent": null
+            },
+            "createdTime": "2026-10-09T06:10:43.8592986+00:00"
+          }
+        ]
+      }
+    ],
+    "messages": []
+  }
+}

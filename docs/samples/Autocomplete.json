@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/Autocomplete",
+    "query": {
+      "query": "Porfy"
+    },
+    "headers": {
+      "anyride-profile-data": "boreal_kiruna",
+      "anyride-profile-display": "boreal"
+    }
+  },
+  "status": 200,
+  "response": [
+    "Porfyrvägen (84185)",
+    "Porfyren (84946)"
+  ]
+}
