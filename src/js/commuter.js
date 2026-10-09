@@ -45,6 +45,15 @@ function handleStoreUpdate(state) {
   // marked current and flip the add/remove wording.
   renderFavorites(state);
   renderFavoriteToggle(state);
+  // The Clear button deselects the stop; it should also dismiss any
+  // "Find stops near me" results (and ignore a lookup still in flight).
+  if (!state.selectedStop) {
+    nearbyRequestId += 1;
+    clearNearbyList();
+    showNearbyStatus('');
+    const button = document.getElementById('nearby-stops-button');
+    if (button) button.disabled = false;
+  }
 }
 
 // ---- Favorites: storage -----------------------------------------------

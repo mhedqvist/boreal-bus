@@ -127,6 +127,7 @@ function render(state, prev) {
   if (!prev || state.stopSelectionSeq !== prev.stopSelectionSeq) renderSelectedStop(state);
   if (!prev || state.liveVehicles !== prev.liveVehicles || state.activeLineIds !== prev.activeLineIds ||
       state.selectedVehicleJourneyId !== prev.selectedVehicleJourneyId ||
+      state.hoveredVehicleJourneyId !== prev.hoveredVehicleJourneyId ||
       state.lineRoutes !== prev.lineRoutes || state.routeGeometry !== prev.routeGeometry ||
       state.stopLocations !== prev.stopLocations ||
       state.lines !== prev.lines) renderVehicles(state);
@@ -282,6 +283,8 @@ function renderVehicles(state) {
     if (bus.stale) markerClasses.push(heading == null ? 'vehicle-dot--stale' : 'vehicle-arrow--stale');
     const wrapperClasses = ['vehicle-icon-wrapper'];
     if (isSelected) wrapperClasses.push('vehicle-icon-wrapper--selected');
+    const isHovered = bus.journeyId != null && bus.journeyId === state.hoveredVehicleJourneyId;
+    if (isHovered) wrapperClasses.push('vehicle-icon-wrapper--hover');
     const markerStyle = heading == null
       ? `background-color: ${color};`
       : `transform: rotate(${heading}deg); border-bottom-color: ${color};`;
@@ -309,6 +312,8 @@ function renderVehicles(state) {
         entry.label = label;
       }
     }
+
+    entry.marker.setZIndexOffset(isHovered ? 1000 : isSelected ? 500 : 0);
 
     if (isSelected) {
       selectedLatLng = displayPosition;

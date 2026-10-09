@@ -35,6 +35,9 @@ export const store = createStore({
   // (lat, lon, timestamp) and changes every poll tick as a bus moves -
   // journeyId is the only identity that's stable across polls.
 
+  hoveredVehicleJourneyId: null, // journeyId of the live bus card under the
+  // pointer/keyboard focus; map.js emphasizes that bus's marker.
+
   lineRoutes: new Map(), // lineId -> Set<routeId>, discovered lazily
   routeGeometry: new Map(), // routeId -> MapRoute
   stopLocations: new Map(), // stopAreaId -> { text, location: {lat, lon} }.

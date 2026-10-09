@@ -625,6 +625,23 @@ button.vehicle-card {
   filter: drop-shadow(0 0 5px var(--color-info)) drop-shadow(0 0 2px var(--color-info));
 }
 
+/* Hover ring: drawn on a pseudo-element so it doesn't fight the rotated
+   marker's inline transform. */
+.vehicle-icon-wrapper--hover::before {
+  content: '';
+  z-index: -1;
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f59e0b;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.25);
+  box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(245, 158, 11, 0.9);
+  pointer-events: none;
+}
+
 .vehicle-arrow {
   width: 0;
   height: 0;

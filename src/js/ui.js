@@ -74,6 +74,22 @@ function wireVehicleCardClicks() {
     const button = e.target.closest('button[data-journey-id]');
     if (button && container.contains(button)) selectVehicle(Number(button.dataset.journeyId));
   });
+
+  const setHovered = (journeyId) => {
+    if (store.get().hoveredVehicleJourneyId !== journeyId) store.set({ hoveredVehicleJourneyId: journeyId });
+  };
+  const journeyIdOf = (target) => {
+    const button = target.closest?.('button[data-journey-id]');
+    return button && container.contains(button) ? Number(button.dataset.journeyId) : null;
+  };
+  // Touch taps fire pointerover but never a matching leave, which would leave
+  // the highlight stuck, so only mouse/pen hover counts.
+  container.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'touch') setHovered(journeyIdOf(e.target));
+  });
+  container.addEventListener('pointerleave', () => setHovered(null));
+  container.addEventListener('focusin', (e) => setHovered(journeyIdOf(e.target)));
+  container.addEventListener('focusout', () => setHovered(null));
 }
 
 function renderVehicleCards(state) {
