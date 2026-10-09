@@ -628,10 +628,14 @@ button.vehicle-card {
 .vehicle-arrow {
   width: 0;
   height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 16px solid #555555; /* overridden inline per-marker color */
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 18px solid #555555; /* overridden inline per-marker color */
+  /* White outline (four hard offset shadows) plus a soft dark shadow so the
+     arrow stands out from same-colored route lines in both themes. */
+  filter: drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff)
+    drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff)
+    drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
   transform-origin: 50% 60%;
 }
 
@@ -640,11 +644,11 @@ button.vehicle-card {
 }
 
 .vehicle-dot {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #ffffff;
+  width: 16px;
+  height: 16px;
+  border: 3px solid #ffffff;
   border-radius: 50%;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
 .vehicle-dot--stale {

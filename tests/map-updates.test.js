@@ -12,6 +12,7 @@ test('moves existing bus markers without rebuilding unchanged routes and stops',
     zoom: 14,
     handlers: {},
     setView() { return this; },
+    createPane() { return { style: {} }; },
     on(event, callback) { this.handlers[event] = callback; },
     getZoom() { return this.zoom; },
     project([lat, lon], zoom) {

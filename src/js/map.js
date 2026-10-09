@@ -33,6 +33,8 @@ const KIRUNA_CENTER = [67.8558, 20.2253];
 const KIRUNA_ZOOM = 14;
 const ROUTE_WEIGHT = 4;
 const LANE_SPACING = ROUTE_WEIGHT + 1;
+const ROUTE_PANE = 'routes';
+const STOP_PANE = 'stops';
 
 // Assumes the global `L` (Leaflet, loaded via <script> in index.html - see
 // docs/initial_plan.md for why a CDN script tag was used instead of a bundler).
@@ -45,6 +47,10 @@ export function initMap(containerId) {
   const tileUrl = cfg?.tiles?.urlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   L.tileLayer(tileUrl, { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 
+  // Draw order, bottom to top: tiles, routes, stops, buses (markerPane).
+  // Separate panes keep re-added route polylines from landing over stops.
+  map.createPane(ROUTE_PANE).style.zIndex = 410;
+  map.createPane(STOP_PANE).style.zIndex = 420;
   routeLayer = L.layerGroup().addTo(map);
   routePolylines.clear();
   stopLayer = L.layerGroup().addTo(map);
@@ -162,6 +168,7 @@ function renderStops(state) {
     const isSelected = stopId === selectedId;
     const isUpcoming = upcoming.has(entry.text);
     const circle = L.circleMarker([entry.location.lat, entry.location.lon], {
+      pane: STOP_PANE,
       radius: isSelected ? 7 : isUpcoming ? 6 : 4,
       color: '#ffffff',
       weight: 2,
@@ -194,6 +201,7 @@ function renderRoutes(state, selectedRouteId) {
     const { key, geometry, color, layoutKey } = route;
     const selected = state.selectedVehicleJourneyId != null && route.routeId === selectedRouteId;
     const styleFor = () => ({
+      pane: ROUTE_PANE,
       color,
       weight: selected ? 7 : ROUTE_WEIGHT,
       opacity: selected ? 1 : 0.8,
