@@ -12,6 +12,15 @@ export function isNextStopSoon(bus, nowMs) {
   return forecastMs - nowMs <= MAX_NEXT_STOP_MS;
 }
 
+// Maps journeyId -> ordered upcoming stops for the trip detail cards.
+export function buildJourneyStops(vehicles) {
+  const journeyStops = new Map();
+  for (const bus of vehicles) {
+    if (bus.journeyId != null) journeyStops.set(bus.journeyId, bus.upcomingStops ?? []);
+  }
+  return journeyStops;
+}
+
 // All journey tracking (town-wide stop scan, position fetches, next-stop
 // forecasts, stale flagging) lives on the server; see server/lib/tracker.js.
 // One request per tick returns every running bus ready to display.
@@ -22,6 +31,7 @@ export async function refreshLiveVehicles({ signal } = {}) {
   const vehicles = (data.vehicles ?? []).filter((bus) => isNextStopSoon(bus, nowMs));
   store.set({
     liveVehicles: vehicles,
+    journeyStops: buildJourneyStops(vehicles),
     errors: { ...store.get().errors, vehicles: data.error ?? null },
   });
   mergeLineRoutes(data.lineRoutes);

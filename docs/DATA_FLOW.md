@@ -51,10 +51,16 @@ main()
  │
  ├─ 4. initUi()                         [ui.js]
  │     wires the stop-search box, subscribes to the store, does an
- │     initial render of (empty) filters/table/arrivals/status
+ │     initial render of (empty) filters/cards/status
  │
- └─ 5. initPoller()                     [poller.js]
-       starts the live-bus polling schedule (see §3)
+ ├─ 5. initCommuter()                   [commuter.js]
+ │     restores favorite stops and wires on-demand nearby-stop lookup
+ │
+ ├─ 6. initPoller()                     [poller.js]
+ │     starts the live-bus polling schedule (see §3)
+ │
+ └─ 7. initCountdown()                  [countdown.js]
+       shows "(update in: N s)" in the header, read from poller.js
 ```
 
 All of `map.js`/`ui.js` render purely as a **function of the shared
@@ -75,11 +81,12 @@ Key fields and who writes them:
 | Field | Written by | Read by |
 |---|---|---|
 | `lines`, `activeLineIds` | `lines.js`, `filters.js` | `map.js`, `ui.js` |
-| `selectedStop`, `calls`, `isStopCancelled`, `messages` | `stops.js`, `calls.js` | `ui.js` |
-| `liveVehicles` | `live-vehicles.js` (from `/api/buses`) | `map.js`, `ui.js` |
+| `selectedStop`, `calls`, `isCallsLoading`, `isStopCancelled`, `messages` | `stops.js`, `calls.js`, `poller.js` | `ui.js` |
+| `liveVehicles` | `live-vehicles.js` (from `/api/buses`) | `map.js`, `ui.js` (primary live-bus source) |
+| `journeyStops` | `live-vehicles.js` (from each bus's `upcomingStops`) | `ui.js` (selected bus trip), `map.js` (upcoming-stop emphasis) |
 | `lineRoutes`, `routeGeometry` | `routes.js` (`mergeLineRoutes`, `recordRouteIdsFromCalls`, `fetchGeometries`) | `map.js` (route polylines) |
 | `stopLocations` | `stop-locations.js` (from `/api/stops`) | `map.js` (stop circles) |
-| `selectedVehicleJourneyId` | `vehicleSelection.js` (row click) | `map.js` (marker highlight/pan), `ui.js` (row highlight) |
+| `selectedVehicleJourneyId` | `vehicleSelection.js` (bus card/marker click) | `map.js` (marker highlight/pan), `ui.js` (card expansion) |
 | `clockOffsetMs` | `clock.js` | `ui.js` (countdowns) |
 | `errors.*` | every fetch module, on failure | `ui.js` (`renderStatus`) |
 
@@ -93,7 +100,8 @@ responses tied to stale UI state are discarded.
    ```
    refreshLiveVehicles()                     [live-vehicles.js]
      GET /api/buses
-     → store.set({ liveVehicles, errors.vehicles = data.error })
+     → drop buses whose next stop is > 10 min away
+     → store.set({ liveVehicles, journeyStops, errors.vehicles = data.error })
      → mergeLineRoutes(data.lineRoutes)      [routes.js]
           add to lineRoutes; GetMapRoute for each new routeId
           → store.routeGeometry
@@ -111,20 +119,38 @@ responses tied to stale UI state are discarded.
    `CallGroup.calls`, updates `store.calls`/`isStopCancelled`/`messages`,
    and feeds the same calls into `recordRouteIdsFromCalls`.
 
+   Route geometry is cached in `store.routeGeometry` for the page session.
+   `routes.js` shares an in-flight request when concurrent scans discover
+   the same route. For the red LKAB-bound shape `540298`, the API currently
+   bypasses Skrädaregatan; `routes.js` fetches return shape `535423` and
+   replaces only the Adolf Hedinsvägen–LKAB approach with its reverse.
+   This correction checks both endpoints and Skrädaregatan, leaves an
+   already-corrected upstream shape alone, and reports `errors.routes`
+   rather than displaying an uncorrected path if it cannot be applied.
+   `map.js` keeps each Leaflet polyline and its route
+   coordinates until that route's geometry changes; filtering only hides
+   or shows it, and selecting a bus changes its style in place. Shared
+   segments of differently colored active routes use parallel screen-pixel
+   offsets with a 1 px gap, tapering back at each end. Unshared segments
+   follow the original geometry. Zooming recomputes only the offset paths;
+   bus markers near a shared segment are placed on their own line's lane
+   (distant GPS positions stay untouched). Panning and normal live updates
+   do not rebuild the route layers.
+
 Both loops pause on `document.visibilitychange` (tab hidden) and, on
 resume, bump `generation` (discarding stale in-flight responses) before
 restarting.
 
 ## 4. Map rendering (`map.js`)
 
-Subscribed to the store; re-renders on every `store.set(...)` anywhere:
+Subscribed to the store; updates only layers whose inputs change:
 
 - **Routes**: for each active line id in `activeLineIds`, for each
   `routeId` in `lineRoutes.get(lineId)`, draws a polyline from
   `routeGeometry.get(routeId).locations`, colored via
   `colorForLineId(lineId)` (parses the Swedish color word out of the
   line's `text`, see `lineColors.js` — not `lineAppearance`, which was
-  observed unreliable).
+  observed unreliable). The selected bus's route is emphasized.
 - **Vehicles**: iterates `state.liveVehicles`, skips any whose `lineId`
   isn't in `activeLineIds`, and draws an `L.marker` with an `L.divIcon` at
   `position.location`. The arrow uses `position.heading` when reported;
@@ -137,44 +163,49 @@ Subscribed to the store; re-renders on every `store.set(...)` anywhere:
   `bus.journeyId === state.selectedVehicleJourneyId` the marker gets a
   scaled/glowing wrapper class; on the render immediately following a
   selection change (tracked via a module-level `lastSelectedJourneyId`)
-  the map pans to it once and opens its tooltip for 3 seconds.
+  the map pans to it once and opens its tooltip for 3 seconds. Markers are
+  reused and moved as new fixes arrive; clicking one selects its journey.
 - **Stops**: a small `circleMarker` for every entry in
   `state.stopLocations`, on its own layer between the routes and the
   vehicles, with the stop name as a tooltip. The currently selected stop
-  is drawn larger and in blue. Clicking a circle calls `selectStopArea`
+  is drawn larger and in blue; the selected journey's upcoming stops are
+  highlighted. Clicking a circle calls `selectStopArea`
   directly (with `bubblingMouseEvents: false`) — the circle would
   otherwise swallow the map-level click that resolves a stop via
   `FindStopsNearLocation`.
 - **Stop selection**: a map click calls `FindStopsNearLocation`
   [`stops.js`], and on a hit, marks the clicked stop and calls
   `selectStopArea`, which updates `store.selectedStop` (triggering
-  `poller.js`'s `onStopSelected`, starting the calls-polling loop).
+  `poller.js`'s `onStopSelected`, starting the calls-polling loop). Selecting
+  through search or shortcuts also pans the map to the chosen stop once.
 
 ## 5. UI rendering (`ui.js`)
 
-Also subscribed to the store; on every change re-renders four
-independent pieces:
+Also subscribed to the store; re-renders only the pieces whose inputs change:
 
-- **Line filters**: checkbox list from `state.lines`; checked state from
+- **Line filters**: checkbox list inside the collapsed Lines disclosure;
+  checked state from
   `activeLineIds`. Toggling calls `filters.js`'s `toggleLine`, which
   **only** flips `activeLineIds` (no network call) — except turning a
   line *on* also calls `ensureLineRouteDiscovered(lineId)` as a
   just-in-case fallback probe if that line's route geometry is still
   completely unknown (normally already populated via `/api/buses`).
-- **Live buses table**: same `state.liveVehicles` data as the map
+- **Live bus cards**: same `state.liveVehicles` data as the map
   markers, filtered by `activeLineIds` and to buses whose last position
-  fix is under 15 minutes old, one row per physical bus (line badge with
-  the short line name, destination, next stop with its planned and
-  expected times, the following stop and its expected time ("Then"),
-  last-updated time, and Live/Stale status). Each row carries a `data-journey-id`; a single delegated click
-  listener (bound once, since the table's `innerHTML` is rebuilt every
+  fix is under 15 minutes old (plus the selected bus), one card per physical
+  bus. Each selectable button carries a `data-journey-id`; a delegated click
+  listener (bound once, since the list's `innerHTML` is rebuilt every
   tick) calls `selectVehicle(journeyId)` [`vehicleSelection.js`], which
   toggles `state.selectedVehicleJourneyId` — pure client-side state, no
-  refetch — highlighting both the row and its map marker.
-- **Arrivals list**: from `state.calls` (the selected stop's flattened
+  refetch — previewing the next three stops from `state.journeyStops`
+  (with a disclosure for the rest) and highlighting the map marker.
+  A shared early/late difference is summarized once above the stops.
+  Keyboard focus is preserved across position updates.
+- **Departure cards**: from `state.calls` (the selected stop's flattened
   departures), filtered by `activeLineIds`, joined against
   `state.messages` for disruption banners, with a cancelled-stop banner
-  when `isStopCancelled`.
+  when `isStopCancelled`. No card is shown before a stop is selected;
+  `isCallsLoading` distinguishes an initial fetch from a true empty result.
 - **Status banner**: surfaces `state.errors.*` (config/lines/vehicles/
   calls/stopNotFound) without clearing previously-good data underneath.
 
@@ -186,13 +217,13 @@ user types → debounced Autocomplete(query)        [stops.js]
            → FindStopArea(StopAreaQuery) or
              FindStopsNearLocation (map click)
            → selectStopArea(stop)
-                store.set({ selectedStop: stop })
+                store.set({ selectedStop: stop, calls: [], isCallsLoading: true })
                 poller.onStopSelected() → generation += 1, starts pollCalls
 ```
 
 Deselecting a stop (`clearSelectedStop`) does the reverse: bumps
 `generation`, stops the calls-polling loop, and clears
-`calls`/`isStopCancelled`/`messages` from the store.
+`calls`/`isCallsLoading`/`isStopCancelled`/`messages` from the store.
 
 ## 7. End-to-end picture
 

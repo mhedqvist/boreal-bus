@@ -9,24 +9,43 @@ database.
 
 ## Features
 
-- All discovered bus routes, colored by their Swedish line names.
+- All discovered bus routes, colored by their Swedish line names. Route
+  geometry and map polylines are reused while browsing instead of rebuilding
+  every route on updates. Differently colored routes sharing a road run in
+  parallel lanes with a 1 px gap, returning to the road center where they
+  split; nearby bus markers follow their line's lane. Unshared stretches
+  and buses far from their route retain their original positions.
+- The API's LKAB-bound red route currently misses Skrädaregatan; only its
+  Adolf Hedinsvägen–LKAB map segment uses the reverse of the API's return
+  route. Stop times and the rest of the route are unchanged.
 - Directional vehicle arrows using each reported heading, falling back to
   the nearest route segment oriented toward the next stop when heading is
   unavailable.
-- Live buses table with short line name, destination, next stop, planned and
-  expected arrival, update time, and freshness status.
-- Click a table row to pan to and highlight that bus; its tooltip closes after
-  three seconds while the highlight remains. Click the row again to clear it.
-- All bus stops shown as clickable circles; selecting one displays its live
-  arrivals. Stops can also be selected through autocomplete or a map click.
-- Client-side line filters apply to routes, vehicle markers, and table rows.
-- Automatic refresh every 60 seconds; polling pauses in a hidden browser tab
-  and resumes immediately when the tab becomes visible.
+- Live bus cards are grouped by line color in a stable order rather than
+  reshuffling by ETA. They show line, destination, next stop, expected time,
+  planned time when it differs, last update, and position freshness. Buses
+  whose next stop is more than 10 minutes away are hidden.
+- Select a bus card to pan to and highlight that bus; its tooltip closes after
+  three seconds while the highlight remains. Click a bus marker to select it
+  too, or select it again to clear it. The selected card previews its next
+  three stops and offers the rest on demand, with expected times and delays.
+- All bus stops shown as clickable circles; selecting one displays its
+  departures and centers the map on that stop. Stops can also be selected
+  through autocomplete or a map click.
+- Save favorite stops locally for one-tap arrivals, or ask for nearby stops
+  using browser location permission.
+- Client-side line filters (under the Lines disclosure) apply to routes,
+  vehicle markers, and departure and bus cards.
+- Automatic refresh every 60 seconds, with a "(update in: N s)" countdown in
+  the header; polling pauses in a hidden browser tab and resumes immediately
+  when the tab becomes visible. Existing bus markers move in place rather
+  than being recreated.
 - Positions older than three minutes are marked stale. Positions older than
-  15 minutes remain visible on the map but are omitted from the table.
-- Responsive phone, tablet, and desktop layouts: phones and tablet portrait
-  use a map-first scrolling page, while tablet landscape and desktop use a
-  two-column map/sidebar view. Wide data tables scroll within their panels.
+  15 minutes remain visible on the map but are omitted from the list unless
+  that bus is selected.
+- On phones and tablet portrait, stop search comes before the map and
+  departures; tablet landscape and desktop use a map/sidebar layout. Bus
+  and departure cards fit narrow screens without horizontal scrolling.
 - Touch-sized controls plus keyboard navigation for stop suggestions and live
   bus selection.
 
@@ -41,9 +60,13 @@ node index.js
 
 Then open <http://localhost:8080/>. The server serves the frontend from
 `src/` and the API under `/api`. An internet connection is required for
-Leaflet/OpenStreetMap assets and the Boreal API. See
-[server/README.md](server/README.md) for configuration, endpoints, tests and
-deployment (including Docker).
+Leaflet/OpenStreetMap assets and the Boreal API. Nearby stops require browser
+location permission and a secure context (HTTPS or localhost); favorites are
+saved in that browser's local storage. See [server/README.md](server/README.md)
+for configuration, endpoints, tests and deployment (including Docker).
+
+Run the dependency-free checks with `node --test` (Node.js 22 or later) from
+the repository root and from `server/`.
 
 ## How live tracking works
 
@@ -63,10 +86,12 @@ upstream traffic does not grow with the number of visitors:
    expected times.
 
 The page polls `/api/buses` every 60 seconds and gets every bus ready to
-display in one request. Stop coordinates are resolved once by the server
-(`/api/stops`), because `GetStopAreas` returns Kiruna stops without
-locations. If Boreal becomes unreachable the server keeps serving the last
-known data, with the error reported in the response.
+display in one request, including each bus's upcoming stops for the trip
+view. The town-wide `GetVehiclePositions` endpoint is not used: it returns no
+buses even while the per-call position endpoint works. Stop coordinates are
+resolved once by the server (`/api/stops`), because `GetStopAreas` returns
+Kiruna stops without locations. If Boreal becomes unreachable the server keeps
+serving the last known data, with the error reported in the response.
 
 ## Hosting the page separately
 
@@ -374,4 +399,3 @@ The endpoint returns `null` when no live position is available.
   <https://boreal.tmix.se/anyride/app.config.json>
 - Client source map:
   <https://boreal.tmix.se/anyride/app.bundle.js.map>
-

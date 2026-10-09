@@ -143,6 +143,11 @@ test('tracker scans once, then only refreshes positions until the scan interval 
   assert.equal(first.vehicles.length, 1);
   assert.deepEqual(first.vehicles[0].nextStop.stopText, 'A');
   assert.equal(first.vehicles[0].followingStop.stopText, 'B');
+  assert.deepEqual(
+    first.vehicles[0].upcomingStops.map((s) => s.stopText),
+    ['A', 'B']
+  );
+  assert.equal(typeof first.vehicles[0].upcomingStops[0].sequenceNumber, 'number');
   assert.deepEqual(first.lineRoutes, { 10: [100] });
   assert.equal(fake.counts.calls, 2);
   assert.equal(fake.counts.positions, 1);

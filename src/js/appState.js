@@ -14,6 +14,7 @@ export const store = createStore({
   // the user typed something else over it) while unrelated poll-tick
   // re-renders still leave in-progress typing alone.
   calls: [], // flattened TransitCall[] for the selected stop
+  isCallsLoading: false,
   isStopCancelled: false,
   messages: [], // TrafficMessage[] for the selected stop
 
@@ -25,11 +26,11 @@ export const store = createStore({
   // fetches positions and dedupes buses sharing the same GPS fix).
   // nextStop/followingStop are computed server-side against the current time
   // on every request. `line` is the short display name (TransitCall.line,
-  // e.g. "Röd."), used for compact table/tooltip display instead of the
+  // e.g. "Röd."), used for compact card/tooltip display instead of the
   // long Line.text.
 
   selectedVehicleJourneyId: null, // journeyId of the bus highlighted via a
-  // Live buses table row click (see vehicleSelection.js). Tracked by
+  // live bus card or map marker click (see vehicleSelection.js). Tracked by
   // journeyId, not liveVehicles[].key, because key is derived from
   // (lat, lon, timestamp) and changes every poll tick as a bus moves -
   // journeyId is the only identity that's stable across polls.
@@ -41,6 +42,9 @@ export const store = createStore({
   // coordinates once per stop (/api/stops, see stop-locations.js) for map.js
   // to draw the stop circles. Stops don't move, so this is populated once and
   // never invalidated.
+  journeyStops: new Map(), // journeyId -> upcoming stops [{ stopText,
+  // sequenceNumber, plannedTime, forecastTime }] in route order, taken from
+  // each bus's `upcomingStops` in /api/buses (see live-vehicles.js).
 
   clockOffsetMs: 0, // serverTime - clientTime, from GetSystemTimestamp
 
@@ -48,6 +52,7 @@ export const store = createStore({
     config: null,
     lines: null,
     vehicles: null,
+    routes: null,
     calls: null,
     stopNotFound: null,
   },

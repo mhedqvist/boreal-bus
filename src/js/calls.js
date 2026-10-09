@@ -10,6 +10,7 @@ export async function fetchCallsForSelectedStop({ signal } = {}) {
   if (!selectedStop) return [];
 
   const resp = await api.getCalls({ fromStopAreaQuery: selectedStop.text }, { signal });
+  if (signal?.aborted || store.get().selectedStop?.text !== selectedStop.text) return [];
   const flat = (resp.calls ?? []).flatMap((group) => group.calls ?? []);
 
   // Feed any newly-seen routeIds into the lazy route-geometry cache.
@@ -17,6 +18,7 @@ export async function fetchCallsForSelectedStop({ signal } = {}) {
 
   store.set({
     calls: flat,
+    isCallsLoading: false,
     isStopCancelled: !!resp.isStopCancelled,
     messages: resp.messages ?? [],
     errors: { ...store.get().errors, calls: null },

@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { store } from './appState.js';
+import { LKAB_BOUND_ROUTE_ID, LKAB_RETURN_ROUTE_ID, correctLkabBoundRoute } from './routeCorrections.js';
 
 // NOTE: TransitCall exposes lineId but not directionId, so discovered route
 // variants are tracked per-line only (not per-direction), even though the
@@ -19,6 +20,7 @@ export function mergeLineRoutes(serverLineRoutes) {
 // Records every routeId seen on flattened TransitCalls (from any GetCalls
 // response, whether from selected-stop polling or the server's line-route
 // map), and kicks off geometry fetches for any routeId not already cached.
+const geometryRequests = new Map();
 export function recordRouteIdsFromCalls(transitCalls) {
   const { lineRoutes, routeGeometry } = store.get();
   let routesChanged = false;
@@ -32,7 +34,7 @@ export function recordRouteIdsFromCalls(transitCalls) {
       lineRoutes.set(call.lineId, set);
       routesChanged = true;
     }
-    if (!routeGeometry.has(call.routeId) && !toFetch.includes(call.routeId)) {
+    if (!routeGeometry.has(call.routeId) && !geometryRequests.has(call.routeId) && !toFetch.includes(call.routeId)) {
       toFetch.push(call.routeId);
     }
   }
@@ -44,16 +46,61 @@ export function recordRouteIdsFromCalls(transitCalls) {
 }
 
 async function fetchGeometries(routeIds) {
-  const { routeGeometry } = store.get();
-  const results = await Promise.allSettled(routeIds.map((id) => api.getMapRoute(id)));
-  let changed = false;
-  results.forEach((res, i) => {
-    if (res.status === 'fulfilled' && res.value) {
-      routeGeometry.set(routeIds[i], res.value);
-      changed = true;
+  const ids = [...routeIds];
+  if (ids.includes(LKAB_BOUND_ROUTE_ID) &&
+      !store.get().routeGeometry.has(LKAB_RETURN_ROUTE_ID) && !ids.includes(LKAB_RETURN_ROUTE_ID)) {
+    ids.push(LKAB_RETURN_ROUTE_ID);
+  }
+  const requests = ids.map((id) => {
+    let request = geometryRequests.get(id);
+    if (!request) {
+      request = api.getMapRoute(id);
+      geometryRequests.set(id, request);
     }
+    return request;
   });
-  if (changed) store.set({ routeGeometry: new Map(routeGeometry) });
+  try {
+    const results = await Promise.allSettled(requests);
+    const state = store.get();
+    const next = new Map(state.routeGeometry);
+    let changed = false;
+    results.forEach((res, i) => {
+      if (res.status === 'fulfilled' && res.value && !next.has(ids[i])) {
+        next.set(ids[i], res.value);
+        changed = true;
+      }
+    });
+    let routesError = null;
+    if (ids.includes(LKAB_BOUND_ROUTE_ID)) {
+      const outbound = next.get(LKAB_BOUND_ROUTE_ID);
+      if (outbound) {
+        try {
+          const corrected = correctLkabBoundRoute(outbound, next.get(LKAB_RETURN_ROUTE_ID));
+          if (corrected !== outbound) {
+            next.set(LKAB_BOUND_ROUTE_ID, corrected);
+            changed = true;
+          }
+        } catch (error) {
+          next.delete(LKAB_BOUND_ROUTE_ID);
+          changed = true;
+          routesError = error.message;
+        }
+      } else {
+        routesError = 'Unable to load the LKAB-bound route geometry.';
+      }
+    }
+    const errorChanged = ids.includes(LKAB_BOUND_ROUTE_ID) && state.errors.routes !== routesError;
+    if (changed || errorChanged) {
+      store.set({
+        ...(changed ? { routeGeometry: next } : {}),
+        ...(errorChanged ? { errors: { ...state.errors, routes: routesError } } : {}),
+      });
+    }
+  } finally {
+    ids.forEach((id, i) => {
+      if (geometryRequests.get(id) === requests[i]) geometryRequests.delete(id);
+    });
+  }
 }
 
 const probeInFlight = new Set();

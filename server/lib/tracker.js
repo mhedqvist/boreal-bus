@@ -99,8 +99,9 @@ export function upcomingStops(info, nowMs, count = UPCOMING_STOP_COUNT) {
     return !Number.isNaN(ms) && ms > nowMs;
   });
   const pool = future.length ? future : info.stops.slice(0, 1);
-  return pool.slice(0, count).map(({ stopText, plannedTime, forecastTime }) => ({
+  return pool.slice(0, count).map(({ sequenceNumber, stopText, plannedTime, forecastTime }) => ({
     stopText,
+    sequenceNumber,
     plannedTime,
     forecastTime,
   }));
@@ -171,7 +172,8 @@ export function buildVehicles({ journeys, positions, nowMs }) {
 
       const key = positionKey(position);
       const ageMs = nowMs - Date.parse(position.timestamp);
-      const [nextStop, followingStop] = upcomingStops(info, nowMs);
+      const upcoming = upcomingStops(info, nowMs, Number.POSITIVE_INFINITY);
+      const [nextStop, followingStop] = upcoming;
       const forecastMs = Date.parse(nextStop?.forecastTime ?? '');
       const forecastRank = Number.isNaN(forecastMs)
         ? Number.POSITIVE_INFINITY
@@ -193,6 +195,7 @@ export function buildVehicles({ journeys, positions, nowMs }) {
         forecastRank,
         nextStop: nextStop ?? { stopText: null, plannedTime: null, forecastTime: null },
         followingStop: followingStop ?? null,
+        upcomingStops: upcoming,
       };
 
       const existing = byKey.get(key);
