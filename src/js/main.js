@@ -6,6 +6,9 @@ import { initUi } from './ui.js';
 import { initClockOffset } from './clock.js';
 import { initCommuter } from './commuter.js';
 import { initCountdown } from './countdown.js';
+import { initTheme } from './theme.js';
+
+initTheme();
 
 async function main() {
   try {

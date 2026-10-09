@@ -5,7 +5,7 @@
   border: 1px solid var(--color-info);
   border-top: 0;
   border-radius: 0 0 8px 8px;
-  background: #edf4ff;
+  background: var(--color-selected);
   box-shadow: inset 1px 0 var(--color-info), inset -1px 0 var(--color-info), inset 0 -1px var(--color-info);
 }
 
@@ -40,7 +40,7 @@
   gap: 0.5rem;
   min-height: 1.8rem;
   padding: 0.25rem 0 0.25rem 0.7rem;
-  border-left: 2px solid #b7cde9;
+  border-left: 2px solid var(--color-accent-line);
 }
 
 .trip-stop:last-child {
@@ -54,7 +54,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #1a5fb4;
+  background: var(--color-accent);
   content: '';
   transform: translateY(-50%);
 }
@@ -75,7 +75,7 @@
 
 .trip-stop-change {
   margin-left: 0.35rem;
-  color: #9a3412;
+  color: var(--color-warn);
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -88,7 +88,7 @@
   display: flex;
   align-items: center;
   min-height: 44px;
-  color: #114587;
+  color: var(--color-accent-ink);
   cursor: pointer;
   font-size: 0.82rem;
   font-weight: 600;
@@ -122,6 +122,6 @@
 }
 
 .trip-delay {
-  color: #9a3412;
+  color: var(--color-warn);
   font-weight: 600;
 }

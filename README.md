@@ -48,6 +48,9 @@ database.
   and departure cards fit narrow screens without horizontal scrolling.
 - Touch-sized controls plus keyboard navigation for stop suggestions and live
   bus selection.
+- Light and dark themes: follows the system setting by default, with a header
+  button to override it (saved in the browser). The map tiles are inverted in
+  dark mode.
 
 ## Run locally
 

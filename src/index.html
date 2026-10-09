@@ -8,6 +8,16 @@
   <link rel="stylesheet" href="css/app.css" />
   <link rel="stylesheet" href="css/trip.css" />
   <link rel="icon" href="data:," />
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
   <script src="runtime-config.js"></script>
 </head>
 <body>
@@ -16,6 +26,7 @@
       <h1>Kiruna buses</h1>
       <p>Live map and departures</p>
       <span id="refresh-countdown" class="refresh-countdown" role="timer" aria-live="off"></span>
+      <button id="theme-toggle" class="theme-toggle" type="button">Dark</button>
     </div>
     <p id="app-error" class="banner banner-error" role="alert" hidden></p>
     <p id="status-banner" class="banner banner-status" role="status" aria-live="polite" hidden></p>
