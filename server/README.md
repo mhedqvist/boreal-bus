@@ -61,6 +61,29 @@ docker build -f server/Dockerfile -t boreal-bus .
 docker run -p 8080:8080 boreal-bus
 ```
 
+### Azure Container Apps
+
+`.github/workflows/image.yml` builds and pushes `ghcr.io/<owner>/boreal-bus`
+on every push to `main` (the package must be public so Azure can pull it).
+One-time setup, then redeploy by pointing the app at the new image:
+
+```powershell
+az extension add --name containerapp
+az provider register -n Microsoft.App --wait
+az group create -n rg-boreal-bus -l swedencentral
+az containerapp env create -n cae-boreal-bus -g rg-boreal-bus -l swedencentral
+az containerapp create -n boreal-bus -g rg-boreal-bus --environment cae-boreal-bus `
+  --image ghcr.io/mhedqvist/boreal-bus:latest --target-port 8080 --ingress external `
+  --min-replicas 0 --max-replicas 1 --cpu 0.25 --memory 0.5Gi --env-vars PORT=8080
+
+# after a new image is built
+az containerapp update -n boreal-bus -g rg-boreal-bus --image ghcr.io/mhedqvist/boreal-bus:latest `
+  --revision-suffix r$(Get-Date -Format yyyyMMddHHmm)
+```
+
+Scale-to-zero means the first request after idle time waits for a cold start
+(a few seconds plus the initial Boreal scan).
+
 Keep a single instance (or accept one cache per instance); the in-memory
 caches are not shared. The first request after a cold start takes a few
 seconds because the server scans all stops; it warms up on boot to hide this.
